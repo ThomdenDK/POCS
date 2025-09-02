@@ -2,3 +2,8 @@
 Also, how can this type be used to construct, scale, bind and take the union of Weighted sets?
 Should i try to prove the isomorphism with parametricity (and is it supported in Isabelle)?
 
+2. Should I aim to have the same file structure?
+
+3. What is the Equation and Solution stuff?
+
+4. Where can i learn more type theory? 
