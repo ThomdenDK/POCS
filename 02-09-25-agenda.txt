@@ -1,9 +1,19 @@
-1. Is the "final encoding" of the Weighted type relevant to the formalization in Isabelle?
+1. Is the "final encoding" of the Weighted type relevant to the formalization in Isabelle (p 10)?
 Also, how can this type be used to construct, scale, bind and take the union of Weighted sets?
 Should i try to prove the isomorphism with parametricity (and is it supported in Isabelle)?
 
-2. Should I aim to have the same file structure?
+2. Should I aim to have the same file structure? Should i also formalize their example graphs or just their
+data structures and algorithms?
 
-3. What is the Equation and Solution stuff?
+3. What is the Equation and Solution stuff (p 16+)?
 
 4. Where can i learn more type theory? 
+
+5. Are the patterns on p 13 relevant/definable in Isabelle?
+
+6. Function composition with a List and a tuple/cartesian product on p 13, Eq 13?
+
+Chains are lazy lists in Isabelle
+Import from Archive of Formal Proofs, Coinductive, Coinductive_list
+If there are any more implementations of union and scaling, we should look for a way to abstract.
+I took photo of definitions.
