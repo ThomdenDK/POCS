@@ -2,3 +2,9 @@
 If (1, a) is in Weighted, is (2, a) also, given the quotient?
 Predicates might be acceptable as they are used to define ordering by saying "there exists"
 
+Since sets do not support folding, it is hard to filter and do any kind of operation on them.
+
+In order to support connect, the set has to be mappable
+
+I cannot implement Monad or Semiring for a type synonym. So cannot implement Weight semimodule on Weighted
+

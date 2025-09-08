@@ -80,6 +80,6 @@ fun connectWeighted :: "('a, 's::ssr) GraphOfWeighted \<Rightarrow> ('a , 's) Gr
   "connectWeighted f g x = {(v \<oplus> w, z) | y v z w. (v, y) \<in> f x \<and> (w, z) \<in> g y}"
 
 
-codatatype ('s, 'a) heap = Heap 'a (('s \<times> ('s, 'a) heap) list)
+codatatype ('s, 'a) heap = "Heap 'a (('s \<times> ('s, 'a) heap) list)"
 
 end

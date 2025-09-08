@@ -1,0 +1,19 @@
+1. At page 8, they define a transitive closure with the semiring, but the function they define to compute
+the closure is recursive without making the problem easier. How does it compute anything?
+
+2. Also it uses the connect operator. Our representation of a weighted set is a function from an element
+to a weight. That means we can't iterate/enumerate the elements.
+How are we supposed to implement the connect operator in a computable way (without predicates)?
+Also, is the connect operator even defined if the set can be infinite?
+a ->x
+	b1->1----V
+	b2->0.5--> c
+	b3->0.25-A
+	...
+Then what is g >=> g? There does not exist a minimum here.
+
+Also if we use a regular set instead of a function
+
+3. The paper sometimes writes a set which has multiple of the same element with different weights and they
+just quotient it to be one element with minimum weight. Should ours do the same (support duplicates)?
+
