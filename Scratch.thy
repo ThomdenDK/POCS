@@ -3,15 +3,15 @@ theory Scratch
 
 begin
 
-class ssr =
+class ssr = order +
   fixes oplus :: "'a \<Rightarrow> 'a \<Rightarrow> 'a"  (infixl "\<oplus>" 65)
   fixes otimes :: "'a \<Rightarrow> 'a \<Rightarrow> 'a" (infixl "\<otimes>" 70)
   fixes one :: "'a"
 
 (*Since it is impossible to quantify over type constructors in Isabelle, 
 we cannot make a generic set type in the GraphOf type definition, and must make a class*)
-class Neighbors =
-  fixes union :: "'a \<Rightarrow> 'a \<Rightarrow> 'a"
+type_synonym ('a, 's) Weighted = "('s \<times> 'a) set"
+type_synonym ('a, 's) GraphOfWeighted = "'a \<Rightarrow> ('a, 's) Weighted"
 
 (*The ssr option is not enforced anywhere, and this enforcement is not possible in a
 type synonym. Consider switching to a definition.*)
@@ -66,23 +66,20 @@ Since the types are potentially infinitely big, it is not possible without
 predicates which compromises computability
 *)
 fun connect :: "('a, 's::ssr) GraphOf \<Rightarrow> ('a, 's) GraphOf \<Rightarrow> ('a, 's) GraphOf" where
-  "connect f g x y = (
-    let nodes_pointed_to_from_x_via_f = {(w, v). f x = Some v} in
-    let nodes_pointing_to_y_via_g = {(w, v). g v = y} in
+  "connect f g = (
+    relational_product (wset_as_set f) (wset_as_set g)
   )"
-    (*let g' = graph_invert g in 
-    let gxset = wset_as_set (g' x) in
-    let nodes_from_gxset = {(a,b). (a,b) \<in> gxset & b = y} in
-    
 
-*)
-(*
-f a = {1 > b, 2 > c}
-g b = {1 > a, 3 > d}
-connect f g a = {2 > a, 4 > d}
-*)
+fun isSmallest :: "('s::ssr \<times> 'a) \<Rightarrow> ('a, 's) Weighted \<Rightarrow> bool" where
+  "isSmallest (a, b) w = fold (\<lambda>el. \<lambda>acc. acc \<or> (let (p, q) = el in if p \<le> a \<and> b = q then false else true)) w true"
+
+fun filterWeighted :: "('a, 's::ssr) Weighted \<Rightarrow> ('a, 's) Weighted" where
+  "filterWeighted w = fold (\<lambda>el. \<lambda>acc. if isSmallest el w then (insert el acc) else acc) emptySet w"
+
+fun connectWeighted :: "('a, 's::ssr) GraphOfWeighted \<Rightarrow> ('a , 's) GraphOfWeighted \<Rightarrow> ('a, 's) GraphOfWeighted" where
+  "connectWeighted f g x = {(v \<oplus> w, z) | y v z w. (v, y) \<in> f x \<and> (w, z) \<in> g y}"
 
 
-codatatype ('s, 'a) heap = Heap 'a (('s \<times> ('s, 'a) heap) list)
+codatatype ('s, 'a) heap = "Heap 'a (('s \<times> ('s, 'a) heap) list)"
 
 end

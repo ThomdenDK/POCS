@@ -3,15 +3,15 @@ theory Scratch
 
 begin
 
-class ssr =
+class ssr = order +
   fixes oplus :: "'a \<Rightarrow> 'a \<Rightarrow> 'a"  (infixl "\<oplus>" 65)
   fixes otimes :: "'a \<Rightarrow> 'a \<Rightarrow> 'a" (infixl "\<otimes>" 70)
   fixes one :: "'a"
 
 (*Since it is impossible to quantify over type constructors in Isabelle, 
 we cannot make a generic set type in the GraphOf type definition, and must make a class*)
-class Neighbors =
-  fixes union :: "'a \<Rightarrow> 'a \<Rightarrow> 'a"
+type_synonym ('a, 's) Weighted = "('s \<times> 'a) set"
+type_synonym ('a, 's) GraphOfWeighted = "'a \<Rightarrow> ('a, 's) Weighted"
 
 (*The ssr option is not enforced anywhere, and this enforcement is not possible in a
 type synonym. Consider switching to a definition.*)
@@ -48,7 +48,10 @@ definition return :: "('a, 's::ssr) GraphOf" where
   "return x = (\<lambda>y. if y = x then Some one else None)"
 
 fun graph_invert :: "('a, 's) GraphOf \<Rightarrow> ('a, 's) GraphOf" where
-  "graph_invert f x a = (case (f x a) of Some w \<Rightarrow> f x a | None \<Rightarrow> None)"
+  "graph_invert f x a = f a x"
+
+definition wset_as_set :: "('a,'s) wset \<Rightarrow> ('s \<times> 'a) set" where
+  "wset_as_set f = {(y,x). f x = Some y}"
 
 (*
 I ask, is d in the connect set of a?
@@ -59,14 +62,22 @@ f says, yes, with a weight of 1.
 connect says yes, a is in the connect set of a with a weight of 3 + 1 = 4.
 I can ask a node what neighbors it points to.
 But how can i ask what is pointing to a node?
+Since the types are potentially infinitely big, it is not possible without 
+predicates which compromises computability
 *)
 fun connect :: "('a, 's::ssr) GraphOf \<Rightarrow> ('a, 's) GraphOf \<Rightarrow> ('a, 's) GraphOf" where
-  "connect f g a = (\<lambda>d. (\<forall>b. if g b d = Some v then if f b a = Some w then v \<otimes> w))"
-(*
-f a = {1 > b, 2 > c}
-g b = {1 > a, 3 > d}
-connect f g a = {2 > a, 4 > d}
-*)
+  "connect f g = (
+    relational_product (wset_as_set f) (wset_as_set g)
+  )"
+
+fun isSmallest :: "('s::ssr \<times> 'a) \<Rightarrow> ('a, 's) Weighted \<Rightarrow> bool" where
+  "isSmallest (a, b) w = fold (\<lambda>el. \<lambda>acc. acc \<or> (let (p, q) = el in if p \<le> a \<and> b = q then false else true)) w true"
+
+fun filterWeighted :: "('a, 's::ssr) Weighted \<Rightarrow> ('a, 's) Weighted" where
+  "filterWeighted w = fold (\<lambda>el. \<lambda>acc. if isSmallest el w then (insert el acc) else acc) emptySet w"
+
+fun connectWeighted :: "('a, 's::ssr) GraphOfWeighted \<Rightarrow> ('a , 's) GraphOfWeighted \<Rightarrow> ('a, 's) GraphOfWeighted" where
+  "connectWeighted f g x = {(v \<oplus> w, z) | y v z w. (v, y) \<in> f x \<and> (w, z) \<in> g y}"
 
 
 codatatype ('s, 'a) heap = Heap 'a (('s \<times> ('s, 'a) heap) list)

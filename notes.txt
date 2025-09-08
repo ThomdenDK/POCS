@@ -1,0 +1,4 @@
+"Weighted" represents FINITE weighted sets and makes graphs of FINITE breadth
+If (1, a) is in Weighted, is (2, a) also, given the quotient?
+Predicates might be acceptable as they are used to define ordering by saying "there exists"
+
