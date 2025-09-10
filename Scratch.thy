@@ -7,7 +7,7 @@ class ssr = order +
   fixes oplus :: "'a \<Rightarrow> 'a \<Rightarrow> 'a"  (infixl "\<oplus>" 65)
   fixes otimes :: "'a \<Rightarrow> 'a \<Rightarrow> 'a" (infixl "\<otimes>" 70)
   fixes one :: "'a"
-  assume assoc
+  (*assume assoc*)
 
 (*Since it is impossible to quantify over type constructors in Isabelle, 
 we cannot make a generic set type in the GraphOf type definition, and must make a class*)
@@ -67,29 +67,14 @@ fun graph_invert :: "('a, 's) GraphOf \<Rightarrow> ('a, 's) GraphOf" where
 definition wset_as_set :: "('a,'s) wset \<Rightarrow> ('s \<times> 'a) set" where
   "wset_as_set f = {(y,x). f x = Some y}"
 
-(*
-I ask, is d in the connect set of a?
-connect asks g, is d in the g set of anything?
-g says, yes it is my g set of b with a weight of 3.
-connect asks f, is a in the b set of f?
-f says, yes, with a weight of 1.
-connect says yes, a is in the connect set of a with a weight of 3 + 1 = 4.
-I can ask a node what neighbors it points to.
-But how can i ask what is pointing to a node?
-Since the types are potentially infinitely big, it is not possible without 
-predicates which compromises computability
-*)
 fun connect :: "('a, 's::ssr) GraphOf \<Rightarrow> ('a, 's) GraphOf \<Rightarrow> ('a, 's) GraphOf" where
-  "connect f g = (
-    relational_product (wset_as_set f) (wset_as_set g)
-  )"
-(*
-fun isSmallest :: "('s::ssr \<times> 'a) \<Rightarrow> ('a, 's) Weighted \<Rightarrow> bool" where
-  "isSmallest (a, b) w = fold (\<lambda>el. \<lambda>acc. acc \<or> (let (p, q) = el in if p \<le> a \<and> b = q then false else true)) w true"
+  "connect f g node el = (
+    let gnodes = {(w, x). g x el = Some w} in
+    let fnodes = {w. \<exists>y w1 w2. f node y = Some w1 \<and> (w2, y) \<in> gnodes \<and> w = w1 \<oplus> w2} in
+    if fnodes = {} then None
+    else Some (SOME w. w \<in> fnodes \<and> (\<forall>y \<in> fnodes. y \<ge> w))
+)"
 
-fun filterWeighted :: "('a, 's::ssr) Weighted \<Rightarrow> ('a, 's) Weighted" where
-  "filterWeighted w = fold (\<lambda>el. \<lambda>acc. if isSmallest el w then (insert el acc) else acc) emptySet w"
-*)
 fun connectWeighted :: "('a, 's::ssr) GraphOfWeighted \<Rightarrow> ('a , 's) GraphOfWeighted \<Rightarrow> ('a, 's) GraphOfWeighted" where
   "connectWeighted f g x = 
     fold (\<lambda>(els, ela) acc. (map (\<lambda>(gs, ga). (gs \<oplus> els, ga)) (g ela)) @ acc) (f x) []"
@@ -108,6 +93,9 @@ fun exp :: "('a, 's::ssr) GraphOfWeighted \<Rightarrow> nat \<Rightarrow> ('a, '
 begin
 end*)
 
-codatatype ('s, 'a) heap = "Heap 'a (('s \<times> ('s, 'a) heap) list)"
+codatatype ('s, 'a) heap = Heap 'a "(('s \<times> ('s, 'a) heap) list)"
+
+term un_Heap1
+term un_Heap2
 
 end

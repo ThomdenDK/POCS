@@ -12,7 +12,7 @@ a ->x
 	...
 Then what is g >=> g? There does not exist a minimum here.
 
-Also if we use a regular set instead of a function, we cannot fold or have infinite size
+Also if we use a regular set instead of a function
 
 3. The paper sometimes writes a set which has multiple of the same element with different weights and they
 just quotient it to be one element with minimum weight. Should ours do the same (support duplicates)?
