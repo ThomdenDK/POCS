@@ -1,5 +1,5 @@
 theory Scratch
-  imports Main "HOL.Rings"
+  imports Main "HOL.Rings" "HOL-Library.Finite_Map"
 
 begin
 
@@ -7,30 +7,45 @@ class ssr = order +
   fixes oplus :: "'a \<Rightarrow> 'a \<Rightarrow> 'a"  (infixl "\<oplus>" 65)
   fixes otimes :: "'a \<Rightarrow> 'a \<Rightarrow> 'a" (infixl "\<otimes>" 70)
   fixes one :: "'a"
-  assume assoc
+  (*assume assoc*)
 
 (*Since it is impossible to quantify over type constructors in Isabelle, 
 we cannot make a generic set type in the GraphOf type definition, and must make a class*)
-type_synonym ('a, 's) Weighted = "('s \<times> 'a) list"
+(*type_synonym ('a, 's) Weighted = "('a \<times> 's) list"*)
+type_synonym ('a, 's) FWeighted = "('a, 's) fmap"
+type_synonym ('a, 's) GraphOfFWeighted = "'a \<Rightarrow> ('a, 's) FWeighted"
 
-definition scaleWeighted :: "'s::ssr \<Rightarrow> ('a, 's) Weighted \<Rightarrow> ('a, 's) Weighted" where
-  "scaleWeighted p = map (\<lambda>(els, ela). (els \<oplus> p, ela))"
+(*definition scaleWeighted :: "'s::ssr \<Rightarrow> ('a, 's) Weighted \<Rightarrow> ('a, 's) Weighted" where
+  "scaleWeighted p = map (\<lambda>(els, ela). (els \<oplus> p, ela))"*)
+context includes fmap.lifting begin
+lift_definition scaleWeighted :: "'s::ssr \<Rightarrow> ('a, 's) FWeighted \<Rightarrow> ('a, 's) FWeighted" is
+  "\<lambda>scalar. \<lambda>w. \<lambda>el. Option.bind (w el) (\<lambda>x. Some(x \<oplus> scalar))"
+  subgoal for scalar w
+    apply (auto split: if_splits simp: dom_def)
+    by (simp add: bind_eq_Some_conv)
+  done
+end
 
-definition returnWeighted :: "'a \<Rightarrow> ('a, 's::ssr) Weighted " where
-  "returnWeighted x = [(one, x)]"
+(*definition returnWeighted :: "'a \<Rightarrow> ('a, 's::ssr) Weighted " where
+  "returnWeighted x = [(one, x)]"*)
+definition returnWeighted :: "('a, 's::ssr) GraphOfFWeighted" where
+  "returnWeighted x = fmap_of_list [(x, one)]"
 
-fun bindWeighted :: "('a, 's::ssr) Weighted \<Rightarrow> ('a \<Rightarrow> ('a, 's) Weighted) \<Rightarrow> ('a, 's) Weighted" where
+
+(*fun bindWeighted :: "('a, 's::ssr) Weighted \<Rightarrow> ('a \<Rightarrow> ('a, 's) Weighted) \<Rightarrow> ('a, 's) Weighted" where
   "bindWeighted [] k = []" |
-  "bindWeighted ((p, x) # xs) k = (scaleWeighted p (k x)) @ (bindWeighted xs k)"
+  "bindWeighted ((p, x) # xs) k = (scaleWeighted p (k x)) @ (bindWeighted xs k)"*)
+context includes fmap.lifting begin
+lift_definition bindWeighted :: "('a, 's::ssr) FWeighted \<Rightarrow> ('a \<Rightarrow> ('a, 's) FWeighted) \<Rightarrow> ('a, 's) FWeighted" is
+  "\<lambda>w. \<lambda>k :: 'a \<Rightarrow> ('a, 's) FWeighted. \<lambda>el :: 'a. scaleWeighted w (k el) ++ (bindWeighted)"
+end
 
-type_synonym ('a, 's) GraphOfWeighted = "'a \<Rightarrow> ('a, 's) Weighted"
-(*typedef ('a, 's) GraphOfWeighted = "UNIV :: ('a \<Rightarrow> ('a, 's) Weighted) set"
-  by auto*)
+(*type_synonym ('a, 's) GraphOfWeighted = "'a \<Rightarrow> ('a, 's) Weighted"*)
 
 (*The ssr option is not enforced anywhere, and this enforcement is not possible in a
 type synonym. Consider switching to a definition.*)
 (*typedef ('a, 's::ssr) wset = "{f :: 'a \<Rightarrow> 's option. True}"*)
-type_synonym ('a, 's) wset = "'a \<Rightarrow> 's::ssr option"
+(*type_synonym ('a, 's) wset = "'a \<Rightarrow> 's::ssr option"
 definition wempty :: "('a, 's) wset" where "wempty x = None"
 
 fun wunion :: "('a, 's::ssr) wset \<Rightarrow> ('a, 's) wset \<Rightarrow> ('a, 's) wset"
@@ -71,8 +86,9 @@ fun connect :: "('a, 's::ssr) GraphOf \<Rightarrow> ('a, 's) GraphOf \<Rightarro
   "connect f g node el = (
     let gnodes = {(w, x). g x el = Some w} in
     let fnodes = {w. \<exists>y w1 w2. f node y = Some w1 \<and> (w2, y) \<in> gnodes \<and> w = w1 \<oplus> w2} in
-    Some (SOME w. w \<in> fnodes \<and> (\<forall>y \<in> fnodes. y \<ge> w))
-)"
+    if fnodes = {} then None
+    else Some (SOME w. w \<in> fnodes \<and> (\<forall>y \<in> fnodes. y \<ge> w))
+)"*)
 
 fun connectWeighted :: "('a, 's::ssr) GraphOfWeighted \<Rightarrow> ('a , 's) GraphOfWeighted \<Rightarrow> ('a, 's) GraphOfWeighted" where
   "connectWeighted f g x = 
@@ -92,6 +108,9 @@ fun exp :: "('a, 's::ssr) GraphOfWeighted \<Rightarrow> nat \<Rightarrow> ('a, '
 begin
 end*)
 
-codatatype ('s, 'a) heap = "Heap 'a (('s \<times> ('s, 'a) heap) list)"
+codatatype ('s, 'a) heap = Heap 'a "(('s \<times> ('s, 'a) heap) list)"
+
+term un_Heap1
+term un_Heap2
 
 end
