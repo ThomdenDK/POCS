@@ -36,8 +36,9 @@ definition returnWeighted :: "('a, 's::ssr) GraphOfFWeighted" where
   "bindWeighted [] k = []" |
   "bindWeighted ((p, x) # xs) k = (scaleWeighted p (k x)) @ (bindWeighted xs k)"*)
 context includes fmap.lifting begin
-lift_definition bindWeighted :: "('a, 's::ssr) FWeighted \<Rightarrow> ('a \<Rightarrow> ('a, 's) FWeighted) \<Rightarrow> ('a, 's) FWeighted" is
-  "\<lambda>w. \<lambda>k :: 'a \<Rightarrow> ('a, 's) FWeighted. \<lambda>el :: 'a. scaleWeighted w (k el) ++ (bindWeighted)"
+fun bindWeighted :: "('a, 's::ssr) FWeighted \<Rightarrow> ('a \<Rightarrow> ('a, 's) FWeighted) \<Rightarrow> ('a, 's) FWeighted" where
+  "bindWeighted fmempty k = fmempty" |
+  "bindWeighted (xs ++\<^sub>f ys) k = (scaleWeighted p (k x)) ++\<^sub>f (bindWeighted xs k)"
 end
 
 (*type_synonym ('a, 's) GraphOfWeighted = "'a \<Rightarrow> ('a, 's) Weighted"*)
