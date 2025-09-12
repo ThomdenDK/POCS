@@ -3,22 +3,19 @@ theory Scratch
 
 begin
 
-class ssr = order +
+(* Definition of weights, weighted sets and graphs*)
+class ssr = linorder +
   fixes oplus :: "'a \<Rightarrow> 'a \<Rightarrow> 'a"  (infixl "\<oplus>" 65)
   fixes otimes :: "'a \<Rightarrow> 'a \<Rightarrow> 'a" (infixl "\<otimes>" 70)
   fixes one :: "'a"
   (*assume assoc*)
 
-(*Since it is impossible to quantify over type constructors in Isabelle, 
-we cannot make a generic set type in the GraphOf type definition, and must make a class*)
-(*type_synonym ('a, 's) Weighted = "('a \<times> 's) list"*)
 type_synonym ('a, 's) FWeighted = "('a, 's) fmap"
 type_synonym ('a, 's) GraphOfFWeighted = "'a \<Rightarrow> ('a, 's) FWeighted"
 
-(*definition scaleWeighted :: "'s::ssr \<Rightarrow> ('a, 's) Weighted \<Rightarrow> ('a, 's) Weighted" where
-  "scaleWeighted p = map (\<lambda>(els, ela). (els \<oplus> p, ela))"*)
+(* Scaling of weighted sets *)
 context includes fmap.lifting begin
-lift_definition scaleWeighted :: "'s::ssr \<Rightarrow> ('a, 's) FWeighted \<Rightarrow> ('a, 's) FWeighted" is
+lift_definition scaleFWeighted :: "'s::ssr \<Rightarrow> ('a, 's) FWeighted \<Rightarrow> ('a, 's) FWeighted" is
   "\<lambda>scalar. \<lambda>w. \<lambda>el. Option.bind (w el) (\<lambda>x. Some(x \<oplus> scalar))"
   subgoal for scalar w
     apply (auto split: if_splits simp: dom_def)
@@ -26,88 +23,92 @@ lift_definition scaleWeighted :: "'s::ssr \<Rightarrow> ('a, 's) FWeighted \<Rig
   done
 end
 
-(*definition returnWeighted :: "'a \<Rightarrow> ('a, 's::ssr) Weighted " where
-  "returnWeighted x = [(one, x)]"*)
-definition returnWeighted :: "('a, 's::ssr) GraphOfFWeighted" where
-  "returnWeighted x = fmap_of_list [(x, one)]"
+(* EDGE SEMIRING *)
+(* Graph-union, \<oplus> *)
+definition unionGraph :: "('a, 's::ssr) GraphOfFWeighted \<Rightarrow> ('a, 's::ssr) GraphOfFWeighted  \<Rightarrow> ('a, 's::ssr) GraphOfFWeighted" where
+  "unionGraph f g x = fmadd (f x) (g x)"
 
+(* Empty graph, \<zero> *)
+definition emptyGraph :: "('a, 's) GraphOfFWeighted" where
+  "emptyGraph x = fmempty"
 
-(*fun bindWeighted :: "('a, 's::ssr) Weighted \<Rightarrow> ('a \<Rightarrow> ('a, 's) Weighted) \<Rightarrow> ('a, 's) Weighted" where
-  "bindWeighted [] k = []" |
-  "bindWeighted ((p, x) # xs) k = (scaleWeighted p (k x)) @ (bindWeighted xs k)"*)
+(* Connect-operator, \<otimes> *)
 context includes fmap.lifting begin
-fun bindWeighted :: "('a, 's::ssr) FWeighted \<Rightarrow> ('a \<Rightarrow> ('a, 's) FWeighted) \<Rightarrow> ('a, 's) FWeighted" where
-  "bindWeighted fmempty k = fmempty" |
-  "bindWeighted (xs ++\<^sub>f ys) k = (scaleWeighted p (k x)) ++\<^sub>f (bindWeighted xs k)"
+lift_definition connectGraph :: "('a, 's::ssr) GraphOfFWeighted \<Rightarrow> ('a, 's::ssr) GraphOfFWeighted  \<Rightarrow> ('a, 's::ssr) GraphOfFWeighted" is
+   "\<lambda>G1 G2 (u :: 'a) (v :: 'a). let X = {s. \<exists>(w :: 'a) s1 s2.
+      G1 u w = Some s1 \<and> G2 w v = Some s2 \<and> s = s1 \<oplus> s2} in (if X = {} then None else Some (Min X))"
+  subgoal for G1 G2 u
+    apply (rule finite_subset[where B="\<Union>v \<in> dom (G1 u). dom (G2 v)"])
+     apply (auto split: if_splits simp: dom_def)
+    done
+  done
 end
 
-(*type_synonym ('a, 's) GraphOfWeighted = "'a \<Rightarrow> ('a, 's) Weighted"*)
+(* Return-graph, \<one> *)
+definition returnGraph :: "('a, 's::ssr) GraphOfFWeighted" where
+  "returnGraph x = fmap_of_list [(x, one)]"
 
-(*The ssr option is not enforced anywhere, and this enforcement is not possible in a
-type synonym. Consider switching to a definition.*)
-(*typedef ('a, 's::ssr) wset = "{f :: 'a \<Rightarrow> 's option. True}"*)
-(*type_synonym ('a, 's) wset = "'a \<Rightarrow> 's::ssr option"
-definition wempty :: "('a, 's) wset" where "wempty x = None"
+(* Monad implementation *)
+context includes fmap.lifting begin
+lift_definition bindWeighted :: "('a, 's::ssr) FWeighted \<Rightarrow> ('a \<Rightarrow> ('a, 's) FWeighted) \<Rightarrow> ('a, 's) FWeighted" is
+  "\<lambda>(w :: 'a \<Rightarrow> 's option) k (el :: 'a). (
+  let (X :: 's set) = {s. \<exists>x t1 t2. w x = Some t1 \<and> k x el = Some t2 \<and> s = t1 \<oplus> t2} in
+  if X = {} then None else Some(Min X))"
+  subgoal for w k
+    apply (rule finite_subset[where B="\<Union>v \<in> dom w. dom (k v)"])
+      apply (auto split: if_splits simp: dom_def)
+    done
+  done
+end
 
-fun wunion :: "('a, 's::ssr) wset \<Rightarrow> ('a, 's) wset \<Rightarrow> ('a, 's) wset"
-  where 
-    "wunion v w x = (case (v x, w x) of
-        (Some a, Some b) \<Rightarrow> Some (a \<oplus> b)
-      | (Some a, None)   \<Rightarrow> Some a
-      | (None, Some b)   \<Rightarrow> Some b
-      | (None, None)     \<Rightarrow> None)"
+(* Algorithms with edge semiring *)
+(* Naive-star is endlessly recursive, but maybe possibly corecursive
+fun naiveStar :: "('a, 's::ssr) GraphOfFWeighted \<Rightarrow> ('a, 's) GraphOfFWeighted" where
+  "naiveStar g = unionGraph returnGraph (connectGraph (naiveStar g) g)"*)
 
-notation wunion (infixl "\<union>" 65)
+fun exp :: "('a, 's::ssr) GraphOfFWeighted \<Rightarrow> nat \<Rightarrow> ('a, 's) GraphOfFWeighted" where
+  "exp g 0 = returnGraph" |
+  "exp g (Suc n) = connectGraph g (exp g n)"
 
-fun wscale :: "'s::ssr \<Rightarrow> ('a, 's) wset \<Rightarrow> ('a, 's) wset"
-  where 
-    "wscale s v x = Option.bind (v x) (\<lambda>a. Some (s \<otimes> a))"
-
-notation wscale (infixl "⋊" 65)
-
-type_synonym ('a, 's) GraphOf = "'a \<Rightarrow> ('a, 's) wset"
-definition empty :: "('a, 's) GraphOf" where "empty x = wempty"
-
-fun gunion :: "('a, 's::ssr) GraphOf \<Rightarrow> ('a, 's) GraphOf \<Rightarrow> ('a, 's) GraphOf" where
-  "gunion f g x = f x \<union> g x" 
-(*warning about ambiguous \<union>, no problem because of type inference*)
-
-notation gunion (infixl "⊞" 65)
-
-definition return :: "('a, 's::ssr) GraphOf" where
-  "return x = (\<lambda>y. if y = x then Some one else None)"
-
-fun graph_invert :: "('a, 's) GraphOf \<Rightarrow> ('a, 's) GraphOf" where
-  "graph_invert f x a = f a x"
-
-definition wset_as_set :: "('a,'s) wset \<Rightarrow> ('s \<times> 'a) set" where
-  "wset_as_set f = {(y,x). f x = Some y}"
-
-fun connect :: "('a, 's::ssr) GraphOf \<Rightarrow> ('a, 's) GraphOf \<Rightarrow> ('a, 's) GraphOf" where
-  "connect f g node el = (
-    let gnodes = {(w, x). g x el = Some w} in
-    let fnodes = {w. \<exists>y w1 w2. f node y = Some w1 \<and> (w2, y) \<in> gnodes \<and> w = w1 \<oplus> w2} in
-    if fnodes = {} then None
-    else Some (SOME w. w \<in> fnodes \<and> (\<forall>y \<in> fnodes. y \<ge> w))
-)"*)
-
-fun connectWeighted :: "('a, 's::ssr) GraphOfWeighted \<Rightarrow> ('a , 's) GraphOfWeighted \<Rightarrow> ('a, 's) GraphOfWeighted" where
-  "connectWeighted f g x = 
-    fold (\<lambda>(els, ela) acc. (map (\<lambda>(gs, ga). (gs \<oplus> els, ga)) (g ela)) @ acc) (f x) []"
-
-fun graphUnionWeighted :: "('a, 's::ssr) GraphOfWeighted \<Rightarrow> ('a , 's) GraphOfWeighted \<Rightarrow> ('a, 's) GraphOfWeighted" where
-  "graphUnionWeighted f g x = f x @ g x"
-
-fun naiveStar :: "('a, 's::ssr) GraphOfWeighted \<Rightarrow> ('a, 's) GraphOfWeighted" where
-  "naiveStar g = graphUnionWeighted returnWeighted (connectWeighted (naiveStar g) g)"
-
-fun exp :: "('a, 's::ssr) GraphOfWeighted \<Rightarrow> nat \<Rightarrow> ('a, 's) GraphOfWeighted" where
-  "exp g 0 = returnWeighted" |
-  "exp g (Suc n) = connectWeighted g (exp g n)"
-
-(*instantiation Weighted :: "Monad"
-begin
+(*context includes fmap.lifting begin
+lift_definition mapGraph :: "('a \<Rightarrow> 'b) \<Rightarrow> ('a, 's::linorder) FWeighted \<Rightarrow> ('b, 's) FWeighted" is
+  "\<lambda>(f::'a \<Rightarrow> 'b). \<lambda>(w::'a \<Rightarrow> 's option). \<lambda>(el:: 'b). 
+  (let X = {s. \<exists>x. f x = el \<and> w x = Some s} in
+  if X = {} then None else Some(Min X))"
+  subgoal for f w
+    apply (auto split: if_splits simp: dom_def)
+    apply (rule finite_subset[where B="\<Union>v \<in> dom w. {f v}"])
+    sledgehammer
+    done
+    done
 end*)
+
+context includes fmap.lifting begin
+lift_definition mapGraph :: "('a \<Rightarrow> 'b) \<Rightarrow> ('a, 's::linorder) FWeighted \<Rightarrow> ('b, 's) FWeighted" is
+  "\<lambda>(f::'a \<Rightarrow> 'b). \<lambda>(w::'a \<Rightarrow> 's option). \<lambda>(el:: 'b). 
+  (let X = {s. \<exists>x. f x = el \<and> w x = Some s} in
+  if X = {} then None else Some(Min X))"
+  subgoal for f w
+    (*apply (auto split: if_splits simp: dom_def)*)
+    (* Proof notes. Need to prove that
+ finite (dom w) \<Longrightarrow>
+    finite
+     (dom (\<lambda>el. let X = {s. \<exists>x. f x = el \<and> w x = Some s}
+                in if X = {} then None else Some (Min X)))
+    If the domain of w is finite, then there exists a finite number of x's 
+    such that f x = el \<and> w x = Some s. So the only way X is finite is if for
+an infinite amount of s's there exists an x such that f x = el \<and> w x = Some s. 
+That is impossible. There can't be an infinite number of s's that can come 
+from applying a function to a finite number of elements 
+Oh but can i input any number of els?
+*)
+    apply (auto split: if_splits simp: dom_def)
+
+  done
+end
+
+term fmran
+term fset_of_fmap
 
 codatatype ('s, 'a) heap = Heap 'a "(('s \<times> ('s, 'a) heap) list)"
 
