@@ -8,6 +8,7 @@ class ssr = linorder +
   fixes oplus :: "'a \<Rightarrow> 'a \<Rightarrow> 'a"  (infixl "\<oplus>" 65)
   fixes otimes :: "'a \<Rightarrow> 'a \<Rightarrow> 'a" (infixl "\<otimes>" 70)
   fixes one :: "'a"
+  fixes monus :: "'a \<Rightarrow> 'a \<Rightarrow> 'a" (infixl "\<doteq>" 70)
   (*assume assoc*)
 
 type_synonym ('a, 's) FWeighted = "('a, 's) fmap"
@@ -113,19 +114,67 @@ fun pathed :: "('a, 's) GraphOfFWeighted \<Rightarrow> ('a list_plus, 's::linord
 
 context includes fmap.lifting begin
 lift_definition filtering :: "('a \<Rightarrow> bool) \<Rightarrow> ('a, 's::ssr) GraphOfFWeighted" is
-  "\<lambda>p v el. (if p v then Some one else None)"
-  subgoal for p v
-    (*apply (auto split: if_splits simp: dom_def)*)
-    done
+  "\<lambda>p v el. (if p v \<and> v = el then Some one else None)"
+  by (auto split: if_splits simp: dom_def)
 end
 
-term filtering
+lemma filtering_true_equals_return: "returnGraph = filtering (\<lambda>x. true)"
+  sorry
 
-term fmran
-term fset_of_fmap
+(* THE VERTEX SEMIRING *)
 
+
+
+
+
+
+
+
+
+type_synonym ('s, 'a) link = "('s \<times> 'a) option"
+(*codatatype ('s, 'a) chain = Chain 'a "('s \<times> ('s, 'a) chain) option"*)
+codatatype ('s, 'a) chain = Chain 'a "('s, ('s, 'a) chain) link"
 codatatype ('s, 'a) heap = Heap 'a "(('s \<times> ('s, 'a) heap) list)"
 
+fun bowtie :: "'s::ssr \<times> ('s, 'a) heap \<Rightarrow> 's \<times> ('s, 'a) heap \<Rightarrow> 's \<times> ('s, 'a) heap" where
+  "bowtie (wl, hl) (wr, hr) = (
+    if (wl \<le> wr) then
+      (wl, Heap (un_Heap1 hl) ((wr \<doteq> wl, hr) # (un_Heap2 hl)))
+    else
+      (wr, Heap (un_Heap1 hr) ((wl \<doteq> wr, hl) # (un_Heap2 hr)))
+  )"
+notation bowtie (infixl "\<bowtie>" 65)
+
+fun merges_plus :: "('s::ssr \<times> ('s, 'a) heap) \<Rightarrow> ('s \<times> ('s, 'a) heap) list \<Rightarrow> ('s \<times> ('s, 'a) heap)" where
+  "merges_plus x [] = x" |
+  "merges_plus x1 [x2] = x1 \<bowtie> x2" |
+  "merges_plus x1 (x2#x3#xs) = (x1 \<bowtie> x2) \<bowtie> merges_plus x3 xs"
+
+fun merges :: "('s::ssr \<times> ('s, 'a) heap) list \<Rightarrow> ('s, ('s, 'a) heap) link" where
+  "merges [] = None" |
+  "merges (x#xs) = Some (merges_plus x xs)"
+
+definition map2 :: "('a \<Rightarrow> 'b) \<Rightarrow> ('c \<times> 'a) \<Rightarrow> ('c \<times> 'b)" where
+  "map2 f p = (let (c, a) = p in (c, f a))"
+
+definition out :: "('s, 'a) heap \<Rightarrow> ('a \<times> (('s \<times> ('s, 'a) heap) list))" where
+  "out h = (un_Heap1 h, un_Heap2 h)"
+
+primcorec test_chain :: "'a \<Rightarrow> 's \<Rightarrow> ('s, 'a) chain" where
+  "test_chain a s = Chain a (Some(s, test_chain a s))"
+
+primcorec search::"('s::ssr, 'a) heap \<Rightarrow> ('s, 'a) chain" where
+  "search h = (
+  let (a, h_opt) = map2 merges (out h) in
+  case h_opt of 
+    Some (s, h') \<Rightarrow>
+      Chain a (Some (s, search h'))
+    | None \<Rightarrow> Chain a None
+  )"
+
+term "(un_Heap2 heap)"
+term "map2 merges"
+term "map2 merges (out heap)"
 term un_Heap1
 term un_Heap2
 

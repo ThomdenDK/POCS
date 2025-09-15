@@ -83,29 +83,43 @@ lift_definition mapGraph :: "('a \<Rightarrow> 'b) \<Rightarrow> ('a, 's::linord
     done
 end*)
 
+lemma finite_image_from_w:
+  assumes "finite {a. \<exists>y. w a = Some y}"
+  shows "finite {a. \<exists>x xa. f xa = a \<and> w xa = Some x}"
+proof -
+  have "{a. \<exists>x xa. f xa = a \<and> w xa = Some x} = f ` {xa. \<exists>y. w xa = Some y}"
+    by auto
+  then show ?thesis using assms
+    by auto
+qed
+
+
 context includes fmap.lifting begin
-lift_definition mapGraph :: "('a \<Rightarrow> 'b) \<Rightarrow> ('a, 's::linorder) FWeighted \<Rightarrow> ('b, 's) FWeighted" is
+lift_definition mapFWeighted :: "('a \<Rightarrow> 'b) \<Rightarrow> ('a, 's::linorder) FWeighted \<Rightarrow> ('b, 's) FWeighted" is
   "\<lambda>(f::'a \<Rightarrow> 'b). \<lambda>(w::'a \<Rightarrow> 's option). \<lambda>(el:: 'b). 
   (let X = {s. \<exists>x. f x = el \<and> w x = Some s} in
   if X = {} then None else Some(Min X))"
   subgoal for f w
-    (*apply (auto split: if_splits simp: dom_def)*)
-    (* Proof notes. Need to prove that
- finite (dom w) \<Longrightarrow>
-    finite
-     (dom (\<lambda>el. let X = {s. \<exists>x. f x = el \<and> w x = Some s}
-                in if X = {} then None else Some (Min X)))
-    If the domain of w is finite, then there exists a finite number of x's 
-    such that f x = el \<and> w x = Some s. So the only way X is finite is if for
-an infinite amount of s's there exists an x such that f x = el \<and> w x = Some s. 
-That is impossible. There can't be an infinite number of s's that can come 
-from applying a function to a finite number of elements 
-Oh but can i input any number of els?
-*)
     apply (auto split: if_splits simp: dom_def)
-
+    by (simp add: finite_image_from_w)
   done
 end
+
+datatype 'a list_plus = Single 'a | Snoc "'a list_plus" 'a
+
+fun pathed :: "('a, 's) GraphOfFWeighted \<Rightarrow> ('a list_plus, 's::linorder) GraphOfFWeighted" where
+  "pathed g (Snoc vs v) = mapFWeighted (\<lambda>t. Snoc (Snoc vs v) t) (g v)" |
+  "pathed g (Single v) = mapFWeighted (\<lambda>t. Snoc (Single v) t) (g v)"
+
+context includes fmap.lifting begin
+lift_definition filtering :: "('a \<Rightarrow> bool) \<Rightarrow> ('a, 's::ssr) GraphOfFWeighted" is
+  "\<lambda>p v el. (if p v then Some one else None)"
+  subgoal for p v
+    (*apply (auto split: if_splits simp: dom_def)*)
+    done
+end
+
+term filtering
 
 term fmran
 term fset_of_fmap
