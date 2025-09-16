@@ -1,0 +1,2 @@
+Should i just start formalizing Forest?
+Is there a better way of proving the subgoals in my lifted functions?
