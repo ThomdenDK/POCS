@@ -180,6 +180,13 @@ fun uniq :: "'a list_plus \<Rightarrow> bool" where
   "uniq (Single x) = True" |
   "uniq (Snoc xs x) = (\<not> list_plus_contains xs x \<and> uniq xs)"
 
+datatype ('a, 'b) Either = Left 'a | Right 'b 
+codatatype ('a, 's) fweightedinf = 
+  FWeightedInf "((((('a, 's) fweightedinf, 's) FWeighted), 'a) Either)"
+type_synonym ('a, 's) Forest = "(('a, 's) fweightedinf, 's) FWeighted"
+
+
+
 (*fun dijkstra :: "'a \<Rightarrow> ('a, 's) GraphOfFWeighted \<Rightarrow> ('a list_plus) Neighbours" where
   "dijkstra s g = connectFWeighted (pathed g) (filtering uniq)"*)
 

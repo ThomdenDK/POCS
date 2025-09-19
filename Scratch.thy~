@@ -11,6 +11,14 @@ class ssr = linorder +
   fixes monus :: "'a \<Rightarrow> 'a \<Rightarrow> 'a" (infixl "\<doteq>" 70)
   (*assume assoc*)
 
+instantiation nat :: ssr begin
+definition oplus_nat :: "nat \<Rightarrow> nat \<Rightarrow> nat" where "oplus_nat a b = min a b"
+definition otimes_nat :: "nat \<Rightarrow> nat \<Rightarrow> nat" where "otimes_nat a b = a + b"
+definition one_nat :: "nat" where "one_nat = 0"
+definition monus_nat :: "nat \<Rightarrow> nat \<Rightarrow> nat" where "monus_nat a b = a-b"
+instance proof qed end
+
+
 type_synonym ('a, 's) FWeighted = "('a, 's) fmap"
 type_synonym ('a, 's) GraphOfFWeighted = "'a \<Rightarrow> ('a, 's) FWeighted"
 
@@ -71,19 +79,6 @@ fun exp :: "('a, 's::ssr) GraphOfFWeighted \<Rightarrow> nat \<Rightarrow> ('a, 
   "exp g 0 = returnGraph" |
   "exp g (Suc n) = connectGraph g (exp g n)"
 
-(*context includes fmap.lifting begin
-lift_definition mapGraph :: "('a \<Rightarrow> 'b) \<Rightarrow> ('a, 's::linorder) FWeighted \<Rightarrow> ('b, 's) FWeighted" is
-  "\<lambda>(f::'a \<Rightarrow> 'b). \<lambda>(w::'a \<Rightarrow> 's option). \<lambda>(el:: 'b). 
-  (let X = {s. \<exists>x. f x = el \<and> w x = Some s} in
-  if X = {} then None else Some(Min X))"
-  subgoal for f w
-    apply (auto split: if_splits simp: dom_def)
-    apply (rule finite_subset[where B="\<Union>v \<in> dom w. {f v}"])
-    sledgehammer
-    done
-    done
-end*)
-
 lemma finite_image_from_w:
   assumes "finite {a. \<exists>y. w a = Some y}"
   shows "finite {a. \<exists>x xa. f xa = a \<and> w xa = Some x}"
@@ -93,7 +88,6 @@ proof -
   then show ?thesis using assms
     by auto
 qed
-
 
 context includes fmap.lifting begin
 lift_definition mapFWeighted :: "('a \<Rightarrow> 'b) \<Rightarrow> ('a, 's::linorder) FWeighted \<Rightarrow> ('b, 's) FWeighted" is
@@ -139,9 +133,9 @@ codatatype ('s, 'a) heap = Heap 'a "(('s \<times> ('s, 'a) heap) list)"
 fun bowtie :: "'s::ssr \<times> ('s, 'a) heap \<Rightarrow> 's \<times> ('s, 'a) heap \<Rightarrow> 's \<times> ('s, 'a) heap" where
   "bowtie (wl, hl) (wr, hr) = (
     if (wl \<le> wr) then
-      (wl, Heap (un_Heap1 hl) ((wr \<doteq> wl, hr) # (un_Heap2 hl)))
+      (wl, Heap (un_Heap1 hl) ((monus wr wl, hr) # (un_Heap2 hl)))
     else
-      (wr, Heap (un_Heap1 hr) ((wl \<doteq> wr, hl) # (un_Heap2 hr)))
+      (wr, Heap (un_Heap1 hr) ((monus wl wr, hl) # (un_Heap2 hr)))
   )"
 notation bowtie (infixl "\<bowtie>" 65)
 
@@ -165,17 +159,28 @@ primcorec test_chain :: "'a \<Rightarrow> 's \<Rightarrow> ('s, 'a) chain" where
 
 primcorec search::"('s::ssr, 'a) heap \<Rightarrow> ('s, 'a) chain" where
   "search h = (
-  let (a, h_opt) = map2 merges (out h) in
-  case h_opt of 
-    Some (s, h') \<Rightarrow>
-      Chain a (Some (s, search h'))
-    | None \<Rightarrow> Chain a None
-  )"
+  let (a, h_opt) = map_prod id merges (out h) in
+  Chain a (map_option (map_prod id search) h_opt))
+"
 
-term "(un_Heap2 heap)"
-term "map2 merges"
-term "map2 merges (out heap)"
-term un_Heap1
-term un_Heap2
+datatype Vertex = a | b | c | d
+definition test_heap :: "(nat, Vertex) heap" where
+  "test_heap = Heap a [(7, Heap b [(8, Heap c [(11, Heap d [])])]), (2, Heap c [(5, Heap d [])])]"
+
+value "search test_heap"
+value "(2, test_heap) \<bowtie> (1, test_heap)"
+
+term Heap
+
+fun list_plus_contains :: "'a list_plus \<Rightarrow> 'a \<Rightarrow> bool" where
+  "list_plus_contains (Single x) y = (x = y)" |
+  "list_plus_contains (Snoc xs x) y = ((x = y) \<or> list_plus_contains xs y)"
+
+fun uniq :: "'a list_plus \<Rightarrow> bool" where
+  "uniq (Single x) = True" |
+  "uniq (Snoc xs x) = (\<not> list_plus_contains xs x \<and> uniq xs)"
+
+(*fun dijkstra :: "'a \<Rightarrow> ('a, 's) GraphOfFWeighted \<Rightarrow> ('a list_plus) Neighbours" where
+  "dijkstra s g = connectFWeighted (pathed g) (filtering uniq)"*)
 
 end
