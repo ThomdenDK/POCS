@@ -8,8 +8,10 @@ class ssr = linorder +
   fixes oplus :: "'a \<Rightarrow> 'a \<Rightarrow> 'a"  (infixl "\<oplus>" 65)
   fixes otimes :: "'a \<Rightarrow> 'a \<Rightarrow> 'a" (infixl "\<otimes>" 70)
   fixes one :: "'a"
-  fixes monus :: "'a \<Rightarrow> 'a \<Rightarrow> 'a" (infixl "\<doteq>" 70)
+  fixes monus :: "'a \<Rightarrow> 'a \<Rightarrow> 'a"
   (*assume assoc*)
+
+print_classes
 
 instantiation nat :: ssr begin
 definition oplus_nat :: "nat \<Rightarrow> nat \<Rightarrow> nat" where "oplus_nat a b = min a b"
@@ -131,11 +133,11 @@ codatatype ('s, 'a) chain = Chain 'a "('s, ('s, 'a) chain) link"
 codatatype ('s, 'a) heap = Heap 'a "(('s \<times> ('s, 'a) heap) list)"
 
 fun bowtie :: "'s::ssr \<times> ('s, 'a) heap \<Rightarrow> 's \<times> ('s, 'a) heap \<Rightarrow> 's \<times> ('s, 'a) heap" where
-  "bowtie (wl, hl) (wr, hr) = (
+  "bowtie (wl, Heap pl chl) (wr, Heap pr chr) = (
     if (wl \<le> wr) then
-      (wl, Heap (un_Heap1 hl) ((monus wr wl, hr) # (un_Heap2 hl)))
+      (wl, Heap pl ((monus wr wl, Heap pr chr) # chl))
     else
-      (wr, Heap (un_Heap1 hr) ((monus wl wr, hl) # (un_Heap2 hr)))
+      (wr, Heap pr ((monus wl wr, Heap pl chl) # chr))
   )"
 notation bowtie (infixl "\<bowtie>" 65)
 
@@ -151,8 +153,8 @@ fun merges :: "('s::ssr \<times> ('s, 'a) heap) list \<Rightarrow> ('s, ('s, 'a)
 definition map2 :: "('a \<Rightarrow> 'b) \<Rightarrow> ('c \<times> 'a) \<Rightarrow> ('c \<times> 'b)" where
   "map2 f p = (let (c, a) = p in (c, f a))"
 
-definition out :: "('s, 'a) heap \<Rightarrow> ('a \<times> (('s \<times> ('s, 'a) heap) list))" where
-  "out h = (un_Heap1 h, un_Heap2 h)"
+fun out :: "('s, 'a) heap \<Rightarrow> ('a \<times> (('s \<times> ('s, 'a) heap) list))" where
+  "out (Heap p ch) = (p, ch)"
 
 primcorec test_chain :: "'a \<Rightarrow> 's \<Rightarrow> ('s, 'a) chain" where
   "test_chain a s = Chain a (Some(s, test_chain a s))"
@@ -180,12 +182,17 @@ fun uniq :: "'a list_plus \<Rightarrow> bool" where
   "uniq (Single x) = True" |
   "uniq (Snoc xs x) = (\<not> list_plus_contains xs x \<and> uniq xs)"
 
+type_synonym ('a, 's) LWeighted = "('a \<times> 's) list"
 datatype ('a, 'b) Either = Left 'a | Right 'b 
-codatatype ('a, 's) fweightedinf = 
-  FWeightedInf "((((('a, 's) fweightedinf, 's) FWeighted), 'a) Either)"
-type_synonym ('a, 's) Forest = "(('a, 's) fweightedinf, 's) FWeighted"
+codatatype ('a, 's) lweightedinf = 
+  LWeightedInf "((((('a, 's) lweightedinf, 'a) Either, 's) LWeighted))"
+type_synonym ('a, 's) Forest = "(('a, 's) lweightedinf, 's) LWeighted"
 
+primcorec dfse :: "('a, 's) GraphOfFWeighted \<Rightarrow> 'a \<Rightarrow> (('a ,'a) Either, 's) Forest" where
+  "dfse g x = unionGraph (returnGraph (Right x)) (bindGraph (g x) (\<lambda>y. returnGraph (Left y)))"
 
+primcorec dfs :: "('a, 's) GraphOfFWeighted \<Rightarrow> 'a \<Rightarrow> ('a, 's) Forest" where
+  "dfs g x = unionGraph (returnGraph x) (bindGraph (g x) (\<lambda>y. returnGraph (dfs g y)))"
 
 (*fun dijkstra :: "'a \<Rightarrow> ('a, 's) GraphOfFWeighted \<Rightarrow> ('a list_plus) Neighbours" where
   "dijkstra s g = connectFWeighted (pathed g) (filtering uniq)"*)
