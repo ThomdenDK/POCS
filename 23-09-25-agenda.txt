@@ -1,0 +1,6 @@
+On page 16, what does it mean for ^M A to be a guarded subset of M A?
+What does it mean for a computation to make progress in a coinductive sense?
+How do i make Equation parametric in a monad? We did not formally make GraphOf a Monad
+Is Flat a set of solutions?
+How to understand the sigma-triangle-eta composed with inr?
+
