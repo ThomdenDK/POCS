@@ -58,13 +58,10 @@ bnf "('a, 'w :: ab_semigroup_add) wset"
   wits: "wempty"
   rel: rel_wset
   sorry
- 
-declare [[typedef_overloaded]]
-codatatype ('a, 'w) wsetinf = WSetInf "(('a, 'w) wsetinf + 'a, 'w :: ab_semigroup_add) wset"
 
 (* Definition of weights, weighted sets and graphs*)
-class ssr = linorder +
-  fixes oplus :: "'a \<Rightarrow> 'a \<Rightarrow> 'a"  (infixl "\<oplus>" 65)
+class ssr = linorder + ab_semigroup_add +
+  (*fixes oplus :: "'a \<Rightarrow> 'a \<Rightarrow> 'a"  (infixl "\<oplus>" 65)*)
   fixes otimes :: "'a \<Rightarrow> 'a \<Rightarrow> 'a" (infixl "\<otimes>" 70)
   fixes one :: "'a"
   fixes monus :: "'a \<Rightarrow> 'a \<Rightarrow> 'a"
@@ -73,7 +70,7 @@ class ssr = linorder +
 print_classes
 
 instantiation nat :: ssr begin
-definition oplus_nat :: "nat \<Rightarrow> nat \<Rightarrow> nat" where "oplus_nat a b = min a b"
+(*definition oplus_nat :: "nat \<Rightarrow> nat \<Rightarrow> nat" where "oplus_nat a b = min a b"*)
 definition otimes_nat :: "nat \<Rightarrow> nat \<Rightarrow> nat" where "otimes_nat a b = a + b"
 definition one_nat :: "nat" where "one_nat = 0"
 definition monus_nat :: "nat \<Rightarrow> nat \<Rightarrow> nat" where "monus_nat a b = a-b"
@@ -83,9 +80,9 @@ instance proof qed end
 type_synonym ('a, 's) GraphOfwset = "'a \<Rightarrow> ('a, 's) wset"
 
 (* Scaling of weighted sets *)
-context includes fmap.lifting begin
+context includes wset.lifting begin
 lift_definition scalewset :: "'s::ssr \<Rightarrow> ('a, 's) wset \<Rightarrow> ('a, 's) wset" is
-  "\<lambda>scalar. \<lambda>w. \<lambda>el. Option.bind (w el) (\<lambda>x. Some(x \<oplus> scalar))"
+  "\<lambda>scalar. \<lambda>w. \<lambda>el. Option.bind (w el) (\<lambda>x. Some(x + scalar))"
   subgoal for scalar w
     apply (auto split: if_splits simp: dom_def)
     by (simp add: bind_eq_Some_conv)
@@ -95,17 +92,17 @@ end
 (* EDGE SEMIRING *)
 (* Graph-union, \<oplus> *)
 definition unionGraph :: "('a, 's::ssr) GraphOfwset \<Rightarrow> ('a, 's::ssr) GraphOfwset  \<Rightarrow> ('a, 's::ssr) GraphOfwset" where
-  "unionGraph f g x = fmadd (f x) (g x)"
+  "unionGraph f g x = wadd (f x) (g x)"
 
 (* Empty graph, \<zero> *)
-definition emptyGraph :: "('a, 's) GraphOfwset" where
-  "emptyGraph x = fmempty"
+definition emptyGraph :: "('a, 's::ssr) GraphOfwset" where
+  "emptyGraph x = wempty"
 
 (* Connect-operator, \<otimes> *)
-context includes fmap.lifting begin
+context includes wset.lifting begin
 lift_definition connectGraph :: "('a, 's::ssr) GraphOfwset \<Rightarrow> ('a, 's::ssr) GraphOfwset  \<Rightarrow> ('a, 's::ssr) GraphOfwset" is
    "\<lambda>G1 G2 (u :: 'a) (v :: 'a). let X = {s. \<exists>(w :: 'a) s1 s2.
-      G1 u w = Some s1 \<and> G2 w v = Some s2 \<and> s = s1 \<oplus> s2} in (if X = {} then None else Some (Min X))"
+      G1 u w = Some s1 \<and> G2 w v = Some s2 \<and> s = s1 + s2} in (if X = {} then None else Some (Min X))"
   subgoal for G1 G2 u
     apply (rule finite_subset[where B="\<Union>v \<in> dom (G1 u). dom (G2 v)"])
      apply (auto split: if_splits simp: dom_def)
@@ -115,13 +112,13 @@ end
 
 (* Return-graph, \<one> *)
 definition returnGraph :: "('a, 's::ssr) GraphOfwset" where
-  "returnGraph x = fmap_of_list [(x, one)]"
+  "returnGraph x = wset_of_list [(x, one)]"
 
 (* Monad implementation *)
 context includes fmap.lifting begin
-lift_definition bindWeighted :: "('a, 's::ssr) wset \<Rightarrow> ('a \<Rightarrow> ('a, 's) wset) \<Rightarrow> ('a, 's) wset" is
+lift_definition bindwset :: "('a, 's::ssr) wset \<Rightarrow> ('a \<Rightarrow> ('a, 's) wset) \<Rightarrow> ('a, 's) wset" is
   "\<lambda>(w :: 'a \<Rightarrow> 's option) k (el :: 'a). (
-  let (X :: 's set) = {s. \<exists>x t1 t2. w x = Some t1 \<and> k x el = Some t2 \<and> s = t1 \<oplus> t2} in
+  let (X :: 's set) = {s. \<exists>x t1 t2. w x = Some t1 \<and> k x el = Some t2 \<and> s = t1 + t2} in
   if X = {} then None else Some(Min X))"
   subgoal for w k
     apply (rule finite_subset[where B="\<Union>v \<in> dom w. dom (k v)"])
@@ -149,8 +146,8 @@ proof -
     by auto
 qed
 
-context includes fmap.lifting begin
-lift_definition mapwset :: "('a \<Rightarrow> 'b) \<Rightarrow> ('a, 's::linorder) wset \<Rightarrow> ('b, 's) wset" is
+context includes wset.lifting begin
+lift_definition mapwset :: "('a \<Rightarrow> 'b) \<Rightarrow> ('a, 's::ssr) wset \<Rightarrow> ('b, 's) wset" is
   "\<lambda>(f::'a \<Rightarrow> 'b). \<lambda>(w::'a \<Rightarrow> 's option). \<lambda>(el:: 'b). 
   (let X = {s. \<exists>x. f x = el \<and> w x = Some s} in
   if X = {} then None else Some(Min X))"
@@ -162,11 +159,11 @@ end
 
 datatype 'a list_plus = Single 'a | Snoc "'a list_plus" 'a
 
-fun pathed :: "('a, 's) GraphOfwset \<Rightarrow> ('a list_plus, 's::linorder) GraphOfwset" where
+fun pathed :: "('a, 's::ssr) GraphOfwset \<Rightarrow> ('a list_plus, 's) GraphOfwset" where
   "pathed g (Snoc vs v) = mapwset (\<lambda>t. Snoc (Snoc vs v) t) (g v)" |
   "pathed g (Single v) = mapwset (\<lambda>t. Snoc (Single v) t) (g v)"
 
-context includes fmap.lifting begin
+context includes wset.lifting begin
 lift_definition filtering :: "('a \<Rightarrow> bool) \<Rightarrow> ('a, 's::ssr) GraphOfwset" is
   "\<lambda>p v el. (if p v \<and> v = el then Some one else None)"
   by (auto split: if_splits simp: dom_def)
@@ -242,15 +239,25 @@ fun uniq :: "'a list_plus \<Rightarrow> bool" where
 
 type_synonym ('a, 's) LWeighted = "('a \<times> 's) list"
 datatype ('a, 'b) Either = Left 'a | Right 'b 
-codatatype ('a, 's) lweightedinf = 
-  LWeightedInf "((((('a, 's) lweightedinf, 'a) Either, 's) LWeighted))"
-type_synonym ('a, 's) Forest = "(('a, 's) lweightedinf, 's) LWeighted"
+(*codatatype ('a, 's) lweightedinf = 
+  LWeightedInf "((((('a, 's) lweightedinf, 'a) Either, 's) LWeighted))"*)
+declare [[typedef_overloaded]]
+codatatype ('a, 'w) wsetinf = WSetInf "((('a, 'w::ssr) wsetinf, 'w) wset, 'a) Either"
+definition returnwsetinf :: "'a \<Rightarrow> ('a, 'w::ssr) wsetinf" where
+"returnwsetinf x = WSetInf (Right x)"
 
-primcorec dfse :: "('a, 's) GraphOfwset \<Rightarrow> 'a \<Rightarrow> (('a ,'a) Either, 's) Forest" where
-  "dfse g x = unionGraph (returnGraph (Right x)) (bindGraph (g x) (\<lambda>y. returnGraph (Left y)))"
+type_synonym ('a, 's) Forest = "(('a, 's) wsetinf, 's) wset"
+definition returnForest :: "'a \<Rightarrow> ('a, 'w::ssr) Forest" where
+"returnForest x = wsingle (returnwsetinf x) one"
 
-primcorec dfs :: "('a, 's) GraphOfwset \<Rightarrow> 'a \<Rightarrow> ('a, 's) Forest" where
-  "dfs g x = unionGraph (returnGraph x) (bindGraph (g x) (\<lambda>y. returnGraph (dfs g y)))"
+primcorec dfse :: "('a, 's::ssr) GraphOfwset \<Rightarrow> 'a \<Rightarrow> (('a ,'a) Either, 's) Forest" where
+  "dfse g x = wadd (returnForest x) (bindwset (g x) (\<lambda>y. returnForest y))"
+
+primcorec dfs1 :: "('a, 's::ssr) GraphOfwset \<Rightarrow> 'a \<Rightarrow> ('a, 's) Forest" where
+  "dfs1 g x = wadd (wsingle ()) (bindwset (g x) (\<lambda>y. returnGraph (dfs1 g y)))"
+
+primcorec dfs2 :: "('a, 's::ssr) GraphOfwset \<Rightarrow> 'a \<Rightarrow> ('a, 's) Forest" where
+  "dfs2 g x = wadd (returnGraph x) (bindwset (g x) (\<lambda>y. (case dfs2 g y of WSetInf s \<Rightarrow> returnGraph s)))"
 
 (*fun dijkstra :: "'a \<Rightarrow> ('a, 's) GraphOfwset \<Rightarrow> ('a list_plus) Neighbours" where
   "dijkstra s g = connectwset (pathed g) (filtering uniq)"*)
