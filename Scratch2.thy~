@@ -243,13 +243,18 @@ datatype ('a, 'b) Either = Left 'a | Right 'b
   LWeightedInf "((((('a, 's) lweightedinf, 'a) Either, 's) LWeighted))"*)
 declare [[typedef_overloaded]]
 codatatype ('a, 'w) wsetinf = WSetInf "((('a, 'w::ssr) wsetinf, 'w) wset, 'a) Either"
+definition returnwsetinf :: "'a \<Rightarrow> ('a, 'w::ssr) wsetinf" where
+"returnwsetinf x = WSetInf (Right x)"
 
 type_synonym ('a, 's) Forest = "(('a, 's) wsetinf, 's) wset"
+definition returnForest :: "'a \<Rightarrow> ('a, 'w::ssr) Forest" where
+"returnForest x = wsingle (returnwsetinf x) one"
+
 primcorec dfse :: "('a, 's::ssr) GraphOfwset \<Rightarrow> 'a \<Rightarrow> (('a ,'a) Either, 's) Forest" where
-  "dfse g x = wadd (returnGraph (Right x)) (bindwset (g x) (\<lambda>y. returnGraph (Left y)))"
+  "dfse g x = wadd (returnForest x) (bindwset (g x) (\<lambda>y. returnForest y))"
 
 primcorec dfs1 :: "('a, 's::ssr) GraphOfwset \<Rightarrow> 'a \<Rightarrow> ('a, 's) Forest" where
-  "dfs1 g x = wadd (returnGraph x) (bindwset (g x) (\<lambda>y. returnGraph (dfs1 g y)))"
+  "dfs1 g x = wadd (wsingle ()) (bindwset (g x) (\<lambda>y. returnGraph (dfs1 g y)))"
 
 primcorec dfs2 :: "('a, 's::ssr) GraphOfwset \<Rightarrow> 'a \<Rightarrow> ('a, 's) Forest" where
   "dfs2 g x = wadd (returnGraph x) (bindwset (g x) (\<lambda>y. (case dfs2 g y of WSetInf s \<Rightarrow> returnGraph s)))"

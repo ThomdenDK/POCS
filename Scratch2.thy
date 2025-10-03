@@ -116,8 +116,8 @@ definition returnGraph :: "('a, 's::ssr) GraphOfwset" where
 
 (* Monad implementation *)
 context includes fmap.lifting begin
-lift_definition bindwset :: "('a, 's::ssr) wset \<Rightarrow> ('a \<Rightarrow> ('a, 's) wset) \<Rightarrow> ('a, 's) wset" is
-  "\<lambda>(w :: 'a \<Rightarrow> 's option) k (el :: 'a). (
+lift_definition bindwset :: "('a, 's::ssr) wset \<Rightarrow> ('a \<Rightarrow> ('b, 's) wset) \<Rightarrow> ('b, 's) wset" is
+  "\<lambda>(w :: 'a \<Rightarrow> 's option) k (el :: 'b). (
   let (X :: 's set) = {s. \<exists>x t1 t2. w x = Some t1 \<and> k x el = Some t2 \<and> s = t1 + t2} in
   if X = {} then None else Some(Min X))"
   subgoal for w k
@@ -250,14 +250,15 @@ type_synonym ('a, 's) Forest = "(('a, 's) wsetinf, 's) wset"
 definition returnForest :: "'a \<Rightarrow> ('a, 'w::ssr) Forest" where
 "returnForest x = wsingle (returnwsetinf x) one"
 
+(*codatatype ('a, 's) forest = Forest "(('a, 's) wsetinf, 's) wset"
+definition returnForest :: "'a \<Rightarrow> ('a, 'w::ssr) Forest" where
+"returnForest x = wsingle (returnwsetinf x) one"*)
+
 primcorec dfse :: "('a, 's::ssr) GraphOfwset \<Rightarrow> 'a \<Rightarrow> (('a ,'a) Either, 's) Forest" where
-  "dfse g x = wadd (returnForest x) (bindwset (g x) (\<lambda>y. returnForest y))"
+  "dfse g x = wadd (returnForest (Right x)) (bindwset (g x) (\<lambda>y. returnForest (Left y)))"
 
-primcorec dfs1 :: "('a, 's::ssr) GraphOfwset \<Rightarrow> 'a \<Rightarrow> ('a, 's) Forest" where
-  "dfs1 g x = wadd (wsingle ()) (bindwset (g x) (\<lambda>y. returnGraph (dfs1 g y)))"
-
-primcorec dfs2 :: "('a, 's::ssr) GraphOfwset \<Rightarrow> 'a \<Rightarrow> ('a, 's) Forest" where
-  "dfs2 g x = wadd (returnGraph x) (bindwset (g x) (\<lambda>y. (case dfs2 g y of WSetInf s \<Rightarrow> returnGraph s)))"
+primcorec dfs :: "('a, 's::ssr) GraphOfwset \<Rightarrow> 'a \<Rightarrow> ('a, 's) Forest" where
+  "dfs g x = wadd (wsingle (returnwsetinf x) one) (bindwset (g x) (\<lambda>y. dfs g y))"
 
 (*fun dijkstra :: "'a \<Rightarrow> ('a, 's) GraphOfwset \<Rightarrow> ('a list_plus) Neighbours" where
   "dijkstra s g = connectwset (pathed g) (filtering uniq)"*)
