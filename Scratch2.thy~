@@ -1,5 +1,5 @@
 theory Scratch2
-  imports Main "HOL.Rings" "HOL-Library.Finite_Map"
+  imports Main "HOL.Rings" "HOL-Library.Finite_Map" "HOL-Library.BNF_Corec"
 
 begin
 
@@ -28,7 +28,7 @@ lift_definition wempty :: \<open>('a, 'w :: ab_semigroup_add) wset\<close> is
 lift_definition wsingle :: \<open>'a \<Rightarrow> 'w \<Rightarrow> ('a, 'w :: ab_semigroup_add) wset\<close> is
   \<open>\<lambda>a w b. if a = b then Some w else None\<close>
   by simp
- 
+
 lift_definition wset :: \<open>('a, 'w :: ab_semigroup_add) wset \<Rightarrow> 'a set\<close> is
   \<open>\<lambda>M. {x. M x \<noteq> None}\<close> .
  
@@ -66,6 +66,10 @@ class ssr = linorder + ab_semigroup_add +
   fixes one :: "'a"
   fixes monus :: "'a \<Rightarrow> 'a \<Rightarrow> 'a"
   (*assume assoc*)
+
+definition returnwset :: "'a \<Rightarrow> ('a, 's::ssr) wset" where
+  "returnwset el = wsingle el one"
+
 
 print_classes
 
@@ -116,8 +120,8 @@ definition returnGraph :: "('a, 's::ssr) GraphOfwset" where
 
 (* Monad implementation *)
 context includes fmap.lifting begin
-lift_definition bindwset :: "('a, 's::ssr) wset \<Rightarrow> ('a \<Rightarrow> ('a, 's) wset) \<Rightarrow> ('a, 's) wset" is
-  "\<lambda>(w :: 'a \<Rightarrow> 's option) k (el :: 'a). (
+lift_definition bindwset :: "('a, 's::ssr) wset \<Rightarrow> ('a \<Rightarrow> ('b, 's) wset) \<Rightarrow> ('b, 's) wset" is
+  "\<lambda>(w :: 'a \<Rightarrow> 's option) k (el :: 'b). (
   let (X :: 's set) = {s. \<exists>x t1 t2. w x = Some t1 \<and> k x el = Some t2 \<and> s = t1 + t2} in
   if X = {} then None else Some(Min X))"
   subgoal for w k
@@ -208,15 +212,15 @@ fun merges :: "('s::ssr \<times> ('s, 'a) heap) list \<Rightarrow> ('s, ('s, 'a)
 definition map2 :: "('a \<Rightarrow> 'b) \<Rightarrow> ('c \<times> 'a) \<Rightarrow> ('c \<times> 'b)" where
   "map2 f p = (let (c, a) = p in (c, f a))"
 
-fun out :: "('s, 'a) heap \<Rightarrow> ('a \<times> (('s \<times> ('s, 'a) heap) list))" where
-  "out (Heap p ch) = (p, ch)"
+fun outHeap :: "('s, 'a) heap \<Rightarrow> ('a \<times> (('s \<times> ('s, 'a) heap) list))" where
+  "outHeap (Heap p ch) = (p, ch)"
 
 primcorec test_chain :: "'a \<Rightarrow> 's \<Rightarrow> ('s, 'a) chain" where
   "test_chain a s = Chain a (Some(s, test_chain a s))"
 
 primcorec search::"('s::ssr, 'a) heap \<Rightarrow> ('s, 'a) chain" where
   "search h = (
-  let (a, h_opt) = map_prod id merges (out h) in
+  let (a, h_opt) = map_prod id merges (outHeap h) in
   Chain a (map_option (map_prod id search) h_opt))
 "
 
@@ -248,16 +252,45 @@ definition returnwsetinf :: "'a \<Rightarrow> ('a, 'w::ssr) wsetinf" where
 
 type_synonym ('a, 's) Forest = "(('a, 's) wsetinf, 's) wset"
 definition returnForest :: "'a \<Rightarrow> ('a, 'w::ssr) Forest" where
-"returnForest x = wsingle (returnwsetinf x) one"
+"returnForest x = returnwset (returnwsetinf x)"
 
-primcorec dfse :: "('a, 's::ssr) GraphOfwset \<Rightarrow> 'a \<Rightarrow> (('a ,'a) Either, 's) Forest" where
-  "dfse g x = wadd (returnForest x) (bindwset (g x) (\<lambda>y. returnForest y))"
+fun outwsetinf :: "('a, 'w) wsetinf \<Rightarrow> ((('a, 'w::ssr) wsetinf, 'w) wset, 'a) Either" where
+  "outwsetinf (WSetInf xs) = xs"
 
-primcorec dfs1 :: "('a, 's::ssr) GraphOfwset \<Rightarrow> 'a \<Rightarrow> ('a, 's) Forest" where
-  "dfs1 g x = wadd (wsingle ()) (bindwset (g x) (\<lambda>y. returnGraph (dfs1 g y)))"
+fun triangle :: "('a \<Rightarrow> 'c) \<Rightarrow> ('b \<Rightarrow> 'c) \<Rightarrow> ('a, 'b) Either \<Rightarrow> 'c" where
+  "triangle f _ (Left el) = f el" |
+  "triangle _ g (Right el) = g el"
 
-primcorec dfs2 :: "('a, 's::ssr) GraphOfwset \<Rightarrow> 'a \<Rightarrow> ('a, 's) Forest" where
-  "dfs2 g x = wadd (returnGraph x) (bindwset (g x) (\<lambda>y. (case dfs2 g y of WSetInf s \<Rightarrow> returnGraph s)))"
+(*let (binder::('a, 's) wsetinf \<Rightarrow> ('b, 's) Forest) = (
+    wsingle \<circ> WSetInf \<circ> Left \<circ> ((triangle (\<lambda>ys. bindForest ys k) k) \<circ> outwsetinf)
+  ) in*)
+
+fun bindForest :: "('a, 'w::ssr) Forest \<Rightarrow> ('a \<Rightarrow> ('b, 'w) Forest) \<Rightarrow> ('b, 'w) Forest" where
+  "bindForest xs k = 
+    bindwset xs (returnwset \<circ> WSetInf \<circ> Left \<circ> ((triangle (\<lambda>ys. bindForest ys k) k) \<circ> outwsetinf))"
+(*
+fun bindForest :: "('a, 'w::ssr) Forest \<Rightarrow> ('a \<Rightarrow> ('b, 'w) Forest) \<Rightarrow> ('b, 'w) Forest" where
+  "bindForest (xs :: ('a, 'w::ssr) Forest) (k :: 'a \<Rightarrow> ('b, 'w) Forest) = ( 
+  let (binder::('a, 's::ssr) wsetinf \<Rightarrow> ('b, 's) Forest) = (
+    let (leftfunc::('a, 's) Forest \<Rightarrow>('b, 's) Forest) = 
+    (wsingle \<circ> WSetInf \<circ> Left \<circ> (\<lambda>ys. bindForest ys k)) in 
+    (triangle leftfunc k \<circ> outwsetinf)
+  ) in
+   bindwset xs binder
+  )
+"*)
+
+(*codatatype ('a, 's::ssr) forest = Forest "(('a, 's) wsetinf, 's) wset"
+definition returnForest :: "'a \<Rightarrow> ('a, 'w::ssr) forest" where
+"returnForest x = Forest (wsingle (returnwsetinf x) one)"*)
+
+type_synonym ('a, 's) GraphOfForest = "'a \<Rightarrow> ('a, 's) Forest"
+
+definition dfse :: "('a, 's::ssr) GraphOfwset \<Rightarrow> 'a \<Rightarrow> (('a ,'a) Either, 's) Forest" where
+  "dfse g x = wadd (returnForest (Right x)) (bindwset (g x) (\<lambda>y. returnForest (Left y)))"
+
+definition dfs :: "('a, 's::ssr) GraphOfForest \<Rightarrow> 'a \<Rightarrow> ('a, 's) Forest" where
+  "dfs g x = wadd (returnForest x) (bindForest (g x) (\<lambda>y. dfs g y))"
 
 (*fun dijkstra :: "'a \<Rightarrow> ('a, 's) GraphOfwset \<Rightarrow> ('a list_plus) Neighbours" where
   "dijkstra s g = connectwset (pathed g) (filtering uniq)"*)
