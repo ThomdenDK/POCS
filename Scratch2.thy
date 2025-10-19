@@ -1,5 +1,5 @@
 theory Scratch2
-  imports Main "HOL.Rings" "HOL-Library.Finite_Map" "HOL-Library.BNF_Corec"
+  imports Main "HOL.Rings" "HOL-Library.Finite_Map" "HOL-Library.BNF_Corec" "WSet"
 
 begin
 
@@ -224,7 +224,7 @@ primcorec search::"('s::ssr, 'a) heap \<Rightarrow> ('s, 'a) chain" where
   let (a, h_opt) = map_prod id merges (outHeap h) in
   Chain a (map_option (map_prod id search) h_opt))
 "
-
+(*
 datatype Vertex = a | b | c | d
 definition test_heap :: "(nat, Vertex) heap" where
   "test_heap = Heap a [(7, Heap b [(8, Heap c [(11, Heap d [])])]), (2, Heap c [(5, Heap d [])])]"
@@ -233,7 +233,7 @@ value "search test_heap"
 value "(2, test_heap) \<bowtie> (1, test_heap)"
 
 term Heap
-
+*)
 fun list_plus_contains :: "'a list_plus \<Rightarrow> 'a \<Rightarrow> bool" where
   "list_plus_contains (Single x) y = (x = y)" |
   "list_plus_contains (Snoc xs x) y = ((x = y) \<or> list_plus_contains xs y)"
@@ -291,16 +291,54 @@ definition dfse :: "('a, 's::ssr) GraphOfForest \<Rightarrow> 'a \<Rightarrow> (
 
 primcorec dfsForest :: "('a, 's::ssr) GraphOfForest \<Rightarrow> 'a \<Rightarrow> ('a, 's) Forest" 
 and dfswsetinf :: "('a, 's::ssr) GraphOfForest \<Rightarrow> ('a, 's) wsetinf \<Rightarrow> ('a, 's) wsetinf" where
-  "dfsForest g x = Forest (image_wset (case_sum (dfswsetinf g) id) (wadd (image_wset Inl (un_Forest (g x))) (returnwset (Inr (returnwsetinf x)))))" |
+  "dfsForest g x = Forest (image_wset (case_sum (dfswsetinf g) id) 
+    (wadd (image_wset Inl (un_Forest (g x))) (returnwset (Inr (returnwsetinf x)))))" |
   "dfswsetinf g x = WSetInf (case outwsetinf x of
-    Inl el \<Rightarrow> Inl el
-    | Inr el \<Rightarrow> (Inl (dfsForest g el)))" (*x is an either, need case*)
+    Inl f \<Rightarrow> Inl (bindForest f (dfsForest g))
+    | Inr a \<Rightarrow> (Inl (dfsForest g a)))" (*x is an either, need case*)
 
 (*primcorec dfsForest :: "('a, 's::ssr) GraphOfForest \<Rightarrow> 'a \<Rightarrow> ('a, 's) Forest" and dfswsetinf :: "('a, 's::ssr) GraphOfForest \<Rightarrow> 'a \<Rightarrow> ('a, 's) wsetinf" where
   "dfsForest g x = Forest (wadd (un_Forest (returnForest x)) (un_Forest (bindForest (g x) (\<lambda>y. dfs g y))))" |
   "dfswsetinf g x = undefined"*)
 
-lemma "dfsForest g x = Forest (wadd (un_Forest (returnForest x)) (un_Forest (bindForest (g x) (\<lambda>y. dfs g y))))"
+
+
+lemma "dfsForest g x = Forest (wadd (un_Forest (returnForest x)) (un_Forest (bindForest (g x) (\<lambda>y. dfsForest g y))))" 
+proof - 
+  have h1: "(returnwset (returnwsetinf x)) = un_Forest (returnForest x)"
+    unfolding returnwset_def returnwsetinf_def returnForest_def
+    by simp
+  have "\<And>x. dfswsetinf g x = bindwsetinf (dfsForest g) x"
+    subgoal for x
+      unfolding dfswsetinf.ctr bindwsetinf.ctr
+      apply(auto)
+      apply(cases "outwsetinf x")
+      subgoal for f
+        apply(auto) 
+        sorry
+      subgoal for a
+        apply(auto) 
+  have "\<And>ws. image_wset (dfswsetinf g) (un_Forest (Forest ws)) = un_Forest (bindForest (Forest ws) (dfsForest g))"
+    subgoal for ws
+      apply(auto)
+      unfolding dfswsetinf_def 
+      
+      sorry
+    done
+  (*proof (induction ws rule: WSet.wset_induct)
+    case (Abs_wset y)
+    then show ?case sorry
+  qed*)
+
+  then have h2: "(image_wset (dfswsetinf g) (un_Forest (g x)) = un_Forest (bindForest (g x) (dfsForest g)))"
+    by auto
+  show ?thesis 
+    unfolding h1[symmetric] h2[symmetric]
+  apply (subst dfsForest.code)
+    
+
+(*apply (auto intro!:wset.map_cong simp add:wset.map_comp bindwsetinf.code split:sum.split)
+  done*)
 
 (*fun dijkstra :: "'a \<Rightarrow> ('a, 's) GraphOfwset \<Rightarrow> ('a list_plus) Neighbours" where
   "dijkstra s g = connectwset (pathed g) (filtering uniq)"*)
