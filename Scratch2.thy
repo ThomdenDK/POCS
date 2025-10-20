@@ -1,16 +1,16 @@
 theory Scratch2
-  imports Main "HOL.Rings" "HOL-Library.Finite_Map" "HOL-Library.BNF_Corec" "WSet"
+  imports Main "WSet" "HOL.Rings" "HOL-Library.Finite_Map" "HOL-Library.BNF_Corec" 
 
 begin
 
 subsection \<open>The type of weighted sets\<close>
- 
+ (*
 instantiation option :: (ab_semigroup_add) comm_monoid_add begin
 definition zero_option where "zero_option = None"
 definition plus_option where "plus_option a b = (case (a, b) of (Some x, Some y) \<Rightarrow> Some (x + y) | (Some x, None) \<Rightarrow> Some x | (None, Some x) \<Rightarrow> Some x | _ \<Rightarrow> None)"
 instance
   by standard (auto simp: zero_option_def plus_option_def ac_simps split: option.splits)
-end
+end*)
  
 typedef ('a, 'w :: ab_semigroup_add) wset = \<open>{f :: 'a \<Rightarrow> 'w option. finite {x. f x \<noteq> None}}\<close>
   morphisms weight Abs_wset
@@ -66,6 +66,7 @@ class ssr = linorder + ab_semigroup_add +
   fixes one :: "'a"
   fixes monus :: "'a \<Rightarrow> 'a \<Rightarrow> 'a"
   assumes right_neutral: "t \<otimes> one = t"
+  assumes left_neutral: "one \<otimes> t = t"
 
 definition returnwset :: "'a \<Rightarrow> ('a, 's::ssr) wset" where
   "returnwset el = wsingle el one"
@@ -74,7 +75,7 @@ definition returnwset :: "'a \<Rightarrow> ('a, 's::ssr) wset" where
 print_classes
 
 instantiation nat :: ssr begin
-(*definition oplus_nat :: "nat \<Rightarrow> nat \<Rightarrow> nat" where "oplus_nat a b = min a b"*)
+definition oplus_nat :: "nat \<Rightarrow> nat \<Rightarrow> nat" where "oplus_nat a b = min a b"
 definition otimes_nat :: "nat \<Rightarrow> nat \<Rightarrow> nat" where "otimes_nat a b = a + b"
 definition one_nat :: "nat" where "one_nat = 0"
 definition monus_nat :: "nat \<Rightarrow> nat \<Rightarrow> nat" where "monus_nat a b = a-b"
@@ -83,7 +84,11 @@ instance proof
   fix t::nat show "t \<otimes> one = t"
     unfolding one_nat_def otimes_nat_def
     by simp
-qed end
+  fix t::nat show "one \<otimes> t = t"
+    unfolding one_nat_def otimes_nat_def
+    by simp
+qed
+end
 
 
 type_synonym ('a, 's) GraphOfwset = "'a \<Rightarrow> ('a, 's) wset"
@@ -174,8 +179,22 @@ lift_definition filtering :: "('a \<Rightarrow> bool) \<Rightarrow> ('a, 's::ssr
   by (auto split: if_splits simp: dom_def)
 end
 
-lemma filtering_true_equals_return: "returnGraph = filtering (\<lambda>x. true)"
-  sorry
+lemma addToEmptySet[simp]: "Scratch2.wadd (Scratch2.wsingle x one) Scratch2.wempty 
+  = Scratch2.wsingle x one"
+  unfolding wadd_def wsingle_def wempty_def
+  apply(auto)
+  by (metis (no_types, lifting) ext Scratch2.wempty.rep_eq Scratch2.wset.weight_inverse
+      add.right_neutral zero_option_def)
+
+
+lemma filtering_true_equals_return: "returnGraph = filtering (\<lambda>x. True)"
+  unfolding filtering_def returnGraph_def
+  apply (auto split: if_splits)
+  unfolding wsingle_def map_fun_def
+  apply(simp)
+  by auto
+  
+  
 
 (* THE VERTEX SEMIRING *)
 
@@ -267,16 +286,29 @@ primcorec bindForest :: "('a, 'w::ssr) Forest \<Rightarrow> ('a \<Rightarrow> ('
     Inl ys \<Rightarrow> Inl (bindForest ys k) 
   | Inr xs \<Rightarrow> Inl (k xs))"
 
-lemma bind1[simp] : "bindwset A (f \<circ> g) = bindwset (image_wset g A) f"
-  sorry
+(*lemma bind1[simp] : "bindwset A (f \<circ> g) = bindwset (image_wset g A) f"
+  apply(transfer)
+  apply(auto simp add: fun_eq_iff right_neutral)
+  apply (metis option.exhaust)*)
 
+lemma bind1[simp] : "bindwset A (f \<circ> g) = bindwset (image_wset g A) f"
+  unfolding bindwset_def
+  by (metis filtering.rep_eq filtering_true_equals_return not_Some_eq)
+  
 lemma bind2[simp] : "bindwset A returnwset = A"
   unfolding returnwset_def
   apply(transfer)
   apply(auto simp add: fun_eq_iff right_neutral)
   by (metis option.exhaust)
 
-lemma awd : "bindForest xs k = (let binder = (
+lemma bind3[simp] : "bindwset (returnwset x) f = f x"
+  unfolding returnwset_def
+  apply(transfer)
+  apply(auto simp add: fun_eq_iff right_neutral)
+  apply (metis option.exhaust)
+  using left_neutral by blast
+
+lemma mutualDefIsEqvWithPaper : "bindForest xs k = (let binder = (
     returnwset \<circ> WSetInf \<circ> Inl \<circ> ((case_sum (\<lambda>ys. bindForest ys k) k) \<circ> outwsetinf)
   ) in
   Forest (bindwset (un_Forest xs) binder))"
@@ -294,14 +326,20 @@ and dfswsetinf :: "('a, 's::ssr) GraphOfForest \<Rightarrow> ('a, 's) wsetinf \<
   "dfsForest g x = Forest (image_wset (case_sum (dfswsetinf g) id) 
     (wadd (image_wset Inl (un_Forest (g x))) (returnwset (Inr (returnwsetinf x)))))" |
   "dfswsetinf g x = WSetInf (case outwsetinf x of
-    Inl f \<Rightarrow> Inl (bindForest f (dfsForest g))
+    Inl f \<Rightarrow> Inl f
     | Inr a \<Rightarrow> (Inl (dfsForest g a)))" (*x is an either, need case*)
+(*(bindForest f (dfsForest g))*)
 
 (*primcorec dfsForest :: "('a, 's::ssr) GraphOfForest \<Rightarrow> 'a \<Rightarrow> ('a, 's) Forest" and dfswsetinf :: "('a, 's::ssr) GraphOfForest \<Rightarrow> 'a \<Rightarrow> ('a, 's) wsetinf" where
   "dfsForest g x = Forest (wadd (un_Forest (returnForest x)) (un_Forest (bindForest (g x) (\<lambda>y. dfs g y))))" |
   "dfswsetinf g x = undefined"*)
 
-
+lemma distributeImageWset[simp]:"image_wset f (wadd a b) = wadd (image_wset f a) (image_wset f b)"
+  unfolding wadd_def map_fun_def
+  apply(auto)
+  
+  done
+  
 
 lemma "dfsForest g x = Forest (wadd (un_Forest (returnForest x)) (un_Forest (bindForest (g x) (\<lambda>y. dfsForest g y))))" 
 proof - 
@@ -317,7 +355,9 @@ proof -
         apply(auto) 
         sorry
       subgoal for a
-        apply(auto) 
+        apply(auto)
+        done
+      done
   have "\<And>ws. image_wset (dfswsetinf g) (un_Forest (Forest ws)) = un_Forest (bindForest (Forest ws) (dfsForest g))"
     subgoal for ws
       apply(auto)
@@ -331,10 +371,12 @@ proof -
   qed*)
 
   then have h2: "(image_wset (dfswsetinf g) (un_Forest (g x)) = un_Forest (bindForest (g x) (dfsForest g)))"
-    by auto
+    apply (auto)
+    by presburger
   show ?thesis 
     unfolding h1[symmetric] h2[symmetric]
-  apply (subst dfsForest.code)
+    apply (subst dfsForest.code)
+    done
     
 
 (*apply (auto intro!:wset.map_cong simp add:wset.map_comp bindwsetinf.code split:sum.split)

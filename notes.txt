@@ -1,22 +1,2 @@
-"Weighted" represents FINITE weighted sets and makes graphs of FINITE breadth
-If (1, a) is in Weighted, is (2, a) also, given the quotient?
-Predicates might be acceptable as they are used to define ordering by saying "there exists"
-
-Since sets do not support folding, it is hard to filter and do any kind of operation on them.
-
-In order to support connect, the set has to be mappable
-
-I cannot implement Monad or Semiring for a type synonym. So cannot implement Weight semimodule on Weighted
-
-(*
-I ask, is d in the connect set of a?
-connect asks g, is d in the g set of anything?
-g says, yes it is my g set of b with a weight of 3.
-connect asks f, is a in the b set of f?
-f says, yes, with a weight of 1.
-connect says yes, a is in the connect set of a with a weight of 3 + 1 = 4.
-I can ask a node what neighbors it points to.
-But how can i ask what is pointing to a node?
-Since the types are potentially infinitely big, it is not possible without 
-predicates which compromises computability
-*)
+If we define dfsForest as primitive, bindForest cannot be used.
+If we define dfsForest as non-primitive, I get an error around "|".
