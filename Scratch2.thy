@@ -130,10 +130,14 @@ definition returnGraph :: "('a, 's::ssr) GraphOfwset" where
 lift_definition bindwset :: "('a, 's::ssr) wset \<Rightarrow> ('a \<Rightarrow> ('b, 's) wset) \<Rightarrow> ('b, 's) wset" is
   "\<lambda>(w :: 'a \<Rightarrow> 's option) k (el :: 'b). (
   let (X :: 's set) = {s. \<exists>x t1 t2. w x = Some t1 \<and> k x el = Some t2 \<and> s = t1 \<otimes> t2} in
-  if X = {} then None else Some(Min X))"
+  Finite_Set.fold (\<lambda>x y. Some x + y) None X)"
   subgoal for w k
     apply (rule finite_subset[where B="\<Union>v \<in> dom w. dom (k v)"])
-      apply (auto split: if_splits simp: dom_def)
+     apply (auto split: if_splits simp: dom_def)
+    subgoal for x y
+      apply(cases "{s. \<exists>xa t1. w xa = Some t1 \<and> (\<exists>t2. k xa x = Some t2 \<and> s = t1 \<otimes> t2)} = {}")
+       apply(auto)
+      done
     done
   done
 
@@ -291,9 +295,55 @@ primcorec bindForest :: "('a, 'w::ssr) Forest \<Rightarrow> ('a \<Rightarrow> ('
   apply(auto simp add: fun_eq_iff right_neutral)
   apply (metis option.exhaust)*)
 
+lemma sumSome[simp]:"Some a + Some b = Some (a+b)"
+  unfolding plus_option_def
+  by auto
+
+lemma fold_Some_exists:"finite S \<Longrightarrow> S\<noteq>{} \<Longrightarrow> None \<notin> A `S \<Longrightarrow> \<exists>t1. Finite_Set.fold (\<lambda>a. (+) (A a)) B S = Some t1"
+proof (induction S arbitrary:B rule: finite_induct)
+  case empty
+  then show ?case
+    by simp
+next
+  case (insert x F)
+  then show ?case
+    apply(subst comp_fun_commute_on.fold_insert_remove
+        [where S="UNIV" and x="x" and A="F" and f="\<lambda>a. (+) (A a)"])
+       apply(auto simp:)
+     apply(unfold_locales; auto simp:comp_def fun_eq_iff ac_simps)
+    apply(cases "A x"; simp; cases "Finite_Set.fold (\<lambda>a. (+) (A a)) B F"; simp)
+    done
+
+qed
+
+lemma "bindwset (wupdate M x (Some w)) k = wadd (image_wset ((\<otimes>) w) (k x)) (bindwset M k)"
+
 lemma bind1[simp] : "bindwset A (f \<circ> g) = bindwset (image_wset g A) f"
-  unfolding bindwset_def
-  by (metis filtering.rep_eq filtering_true_equals_return not_Some_eq)
+  apply(transfer)
+  apply(auto simp:fun_eq_iff)
+  subgoal for A f g y x t1 t2
+    apply(cases "{a. (\<exists>y. A a = Some y) \<and> g a = x} = {}" ; simp?)
+    apply(erule exE conjE)+
+    subgoal for a t1'
+      apply(erule allE[where x="t1'\<otimes>t2"])
+      apply(erule allE[where x="a"])
+      apply(erule allE[where x="t1'"])
+      apply(simp)
+      done
+    done
+  subgoal for A f g y a t1 t2
+    using fold_Some_exists[where S="{a'. (\<exists>y. A a' = Some y) \<and> g a' = g a}" and B="None" and A="A"]
+    apply(auto)
+    apply(drule meta_mp)
+     apply(blast)
+    apply(drule meta_mp)
+    by auto
+  subgoal for A f g y a t1 t2 x t1' t2'
+    
+(*
+by (metis filtering.rep_eq filtering_true_equals_return not_Some_eq)
+*)
+
   
 lemma bind2[simp] : "bindwset A returnwset = A"
   unfolding returnwset_def
@@ -337,8 +387,7 @@ and dfswsetinf :: "('a, 's::ssr) GraphOfForest \<Rightarrow> ('a, 's) wsetinf \<
 lemma distributeImageWset[simp]:"image_wset f (wadd a b) = wadd (image_wset f a) (image_wset f b)"
   unfolding wadd_def map_fun_def
   apply(auto)
-  
-  done
+  sorry
   
 
 lemma "dfsForest g x = Forest (wadd (un_Forest (returnForest x)) (un_Forest (bindForest (g x) (\<lambda>y. dfsForest g y))))" 

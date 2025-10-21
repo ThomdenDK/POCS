@@ -1921,35 +1921,20 @@ proof -
     have "(image_wset (g \<circ> f)) h = (image_wset g \<circ> image_wset f) h" for h
       apply(induction h; (rule allI)+)
       subgoal for h
-        unfolding image_wset_def
+        apply(transfer)
         apply auto
-        proof -
-          have "\<forall>ga h. (\<forall>i. weight (Abs_wset (\<lambda>h. None)) h \<noteq> Some (i::'i)) \<or> g h \<noteq> ga"
-            by (metis (full_types) not_None_eq wempty.rep_eq wempty_def)
-          then have "\<forall>ga. {} = {h. (\<exists>i. weight (Abs_wset (\<lambda>h. None)) h = Some (i::'i)) \<and> g h = ga}"
-            by auto
-          then show "Abs_wset (\<lambda>g. None) = Abs_wset (\<lambda>ga. Finite_Set.fold (\<lambda>h. (+) (weight (Abs_wset (\<lambda>h. None)) h)) None {h. (\<exists>i. weight (Abs_wset (\<lambda>h. None)) h = Some (i::'i)) \<and> g h = ga})"
-            by (metis (no_types) fold_empty)
-        qed
+        done
         subgoal for x w M
           unfolding comp_def
           apply auto
-          apply(cases "weight M x = None")
           subgoal
-            apply(drule w_image_update[where f = f and w = w])
+            apply(frule w_image_update[where f = f and w = w])
             apply simp
-            apply(cases "weight M x = None")
             subgoal
-              apply(drule w_image_update[where f = "(\<lambda>a. g (f a))" and w = w])
-              apply(simp)
-              using wimage_wadd_wsingle
+              apply(frule w_image_update[where f = "(\<lambda>a. g (f a))" and w = w])
               apply(simp only: wimage_wadd_wsingle)
               done
-            subgoal
-              by auto
             done
-          subgoal
-            by auto
           done
         done
   then show ?thesis
