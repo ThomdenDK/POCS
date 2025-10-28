@@ -1,2 +1,13 @@
 If we define dfsForest as primitive, bindForest cannot be used.
 If we define dfsForest as non-primitive, I get an error around "|".
+
+
+Get Mathias' current version
+Get rid of "sorry"s
+Prove that wadd is commutative
+image_wset_returnwset
+Check git history for bind rules (definition of bind?)
+Exam is on the 6th of november, 13:00
+Next meeting at Thursday at 10:00, 30th oct
+e11 e12... lemma is the least important
+
