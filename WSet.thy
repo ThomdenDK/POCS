@@ -1135,7 +1135,7 @@ lemma size_wupdate: "Suc k = size (wupdate N x (Some w)) \<Longrightarrow> weigh
     done
   done
 
-theorem wset_induct [case_names empty add, induct type: multiset]:
+theorem wset_induct [case_names empty add, induct type: wset]:
   assumes empty: "\<And> M. (\<And> x. weight M x = None) \<Longrightarrow> P M"
   assumes add: "\<And>x w M. P M \<Longrightarrow> weight M x = None \<Longrightarrow> P (wupdate M x (Some w))"
   shows "P M"

@@ -68,6 +68,7 @@ class ssr = linorder + ab_semigroup_add_test +
   fixes monus :: "'a \<Rightarrow> 'a \<Rightarrow> 'a"
   assumes right_neutral: "t \<otimes> one = t"
   assumes left_neutral: "one \<otimes> t = t"
+  assumes distribute: "(a + b) \<otimes> c = a \<otimes> c + b \<otimes> c"
 
 definition returnwset :: "'a \<Rightarrow> ('a, 's::ssr) wset" where
   "returnwset el = wsingle el one"
@@ -95,6 +96,9 @@ next
           Some a = e11 + e12 \<and>
           Some b = e21 + e22 \<and> Some c = e11 + e21 \<and> Some d = e12 + e22"
     sorry
+next
+  fix a b c :: nat show "(a + b) \<otimes> c = a \<otimes> c + b \<otimes> c"
+    sorry
 qed
 end
 
@@ -103,8 +107,8 @@ type_synonym ('a, 's) GraphOfwset = "'a \<Rightarrow> ('a, 's) wset"
 
 (* Scaling of weighted sets *)
 context includes wset.lifting begin
-lift_definition scalewset :: "'s::ssr \<Rightarrow> ('a, 's) wset \<Rightarrow> ('a, 's) wset" is
-  "\<lambda>scalar. \<lambda>w. \<lambda>el. Option.bind (w el) (\<lambda>x. Some(x + scalar))"
+lift_definition scalewset :: "('s::ssr \<Rightarrow> 's) \<Rightarrow> ('a, 's) wset \<Rightarrow> ('a, 's) wset" is
+  "\<lambda>f. \<lambda>w. \<lambda>el. Option.bind (w el) (\<lambda>x. Some(f x))"
   subgoal for scalar w
     apply (auto split: if_splits simp: dom_def)
     by (simp add: bind_eq_Some_conv)
@@ -334,32 +338,102 @@ next
     done
 qed
 
-lemma "bindwset (wupdate M x (Some w)) k = wadd (image_wset ((\<otimes>) w) (k x)) (bindwset M k)"
+
+theorem wset_induct [case_names empty add, induct type: wset]:
+  assumes empty: "P wempty"
+  assumes add: "\<And>x w M. P M \<Longrightarrow> weight M x = None \<Longrightarrow> P (wupdate M x (Some w))"
+  shows "P M"
+proof (rule wset_induct[where P=P, OF _ add])
+  fix M :: "('a, 'b) wset"
+  assume "\<And>x. weight M x = None"
+  then have "M = wempty"
+    by transfer auto
+  then show "P M"
+    using empty by simp
+qed
+
+(*
+lemma bindwset_wupdate_None:
+  "bindwset (wupdate M x None) k = wremove (k x) (bindwset M k)"
+  sorry
+*)
+lemma bindwset_wupdate:
+  "bindwset (wupdate M x (Some w)) k = wadd (scalewset ((\<otimes>) w) (k x)) (bindwset M k)"
   sorry
 
-lemma bind1[simp] : "bindwset A (f \<circ> g) = bindwset (image_wset g A) f"
+lemma wadd_wempty[simp]: "wadd wempty A = A"
+  apply(transfer)
+  apply(auto)
+  done
+
+lemma bindwset_wempty[simp]: "bindwset wempty f = wempty"
+  by transfer auto
+
+lemma wadd_wupdate[simp]: "wadd (wupdate A x w) B = wupdate (wadd A B) x (w + weight B x)"
+  apply(transfer)
+  apply(auto)
+  done
+
+lemma Some_plus:"Some x + w = Some (case w of None \<Rightarrow> x | Some y \<Rightarrow> x+y)"
+  by (auto simp:plus_option_def split:option.split)
+
+lemma wadd_wempty_iff[simp]: "wadd A B = wempty \<longleftrightarrow> A = wempty \<and> B = wempty"
+  by transfer (force simp: fun_eq_iff plus_option_def split: option.splits)
+
+lemma wupdate_same: "weight A x = None \<Longrightarrow> wupdate A x None = A"
+  apply transfer
+  apply (auto simp: fun_eq_iff)
+  done
+
+lemma scalewset_distribute: "scalewset ((\<otimes>) (w + v)) M = wadd (scalewset ((\<otimes>) w) M) (scalewset ((\<otimes>) v) M)"
+  apply (transfer)
+  apply(auto simp:fun_eq_iff distribute split: Option.bind_splits)
+  done
+
+lemma bindwset_wadd: "bindwset (wadd A B) k = wadd (bindwset A k) (bindwset B k)"
+proof (induction "wadd A B" arbitrary: A B)
+  case empty
+  then show ?case
+    by (auto dest: sym)
+next
+  case (add x w C)
+  have A: "A = wupdate (wupdate A x None) x (weight A x)" and B: "B = wupdate (wupdate B x None) x (weight B x)"
+    by (transfer; auto)+
+  from add(2,3) have "C = wadd (wupdate A x None) (wupdate B x None)" "weight A x + weight B x = Some w"
+    by (transfer; auto simp: fun_eq_iff split: if_splits)+
+  from add(1)[OF this(1)] this(2) add(3)[symmetric] add(2) this show ?case
+    apply (auto simp: bindwset_wupdate)
+    apply (subst (2) A)
+    apply (subst (2) B)
+    apply (cases "weight A x"; cases "weight B x")
+       apply (auto simp: bindwset_wupdate scalewset_distribute)
+      apply (drule wupdate_same[of A])
+      apply (metis wadd_assoc wadd_commute)
+     apply (drule wupdate_same[of B])
+     apply (metis wadd_assoc)
+    apply (smt (verit, best) wadd_assoc wadd_commute)
+    done
+qed
+
+lemma bindwset_wsingle[simp]: "bindwset (wsingle x w) f = scalewset ((\<otimes>) w) (f x)"
   apply(transfer)
   apply(auto simp:fun_eq_iff)
-  
-  subgoal for A f g y x t1 t2
-    apply(cases "{a. (\<exists>y. A a = Some y) \<and> g a = x} = {}" ; simp?)
-    apply(erule exE conjE)+
-    subgoal for a t1'
-      apply(erule allE[where x="t1'\<otimes>t2"])
-      apply(erule allE[where x="a"])
-      apply(erule allE[where x="t1'"])
-      apply(simp)
-      done
-    done
-  subgoal for A f g y a t1 t2
-    using fold_Some_exists[where S="{a'. (\<exists>y. A a' = Some y) \<and> g a' = g a}" and B="None" and A="A"]
+  subgoal for x w f y
+    apply(cases "f x y")
     apply(auto)
-    apply(drule meta_mp)
-     apply(blast)
-    apply(drule meta_mp)
-    by auto
-  subgoal for A f g y a t1 t2 x t1' t2'
- 
+    done
+  done
+lemma bind1[simp] : "bindwset A (f \<circ> g) = bindwset (image_wset g A) f"
+proof (induction A)
+  case empty
+  then show ?case
+    by (simp add: wimage_empty)
+next
+  case (add x w A)
+  then show ?case
+    by (auto simp add: bindwset_wupdate w_image_update bindwset_wadd)
+qed
+
 (*
 by (metis filtering.rep_eq filtering_true_equals_return not_Some_eq)
 *)
