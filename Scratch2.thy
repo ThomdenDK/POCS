@@ -149,6 +149,17 @@ lift_definition bindwset :: "('a, 's::ssr) wset \<Rightarrow> ('a \<Rightarrow> 
     done
   done
 
+(*OLD DEFINITION*)
+(*lift_definition bindwset :: "('a, 's::ssr) wset \<Rightarrow> ('a \<Rightarrow> ('b, 's) wset) \<Rightarrow> ('b, 's) wset" is
+  "\<lambda>(w :: 'a \<Rightarrow> 's option) k (el :: 'b). (
+  let (X :: 's set) = {s. \<exists>x t1 t2. w x = Some t1 \<and> k x el = Some t2 \<and> s = t1 \<otimes> t2} in
+  if X = {} then None else Some(Min X))"
+  subgoal for w k
+    apply (rule finite_subset[where B="\<Union>v \<in> dom w. dom (k v)"])
+   apply (auto split: if_splits simp: dom_def)
+  done
+done*)
+
 (* Algorithms with edge semiring *)
 (* Naive-star is endlessly recursive, but maybe possibly corecursive
 fun naiveStar :: "('a, 's::ssr) GraphOfwset \<Rightarrow> ('a, 's) GraphOfwset" where
@@ -329,8 +340,7 @@ lemma "bindwset (wupdate M x (Some w)) k = wadd (image_wset ((\<otimes>) w) (k x
 lemma bind1[simp] : "bindwset A (f \<circ> g) = bindwset (image_wset g A) f"
   apply(transfer)
   apply(auto simp:fun_eq_iff)
-  sorry
-(*
+  
   subgoal for A f g y x t1 t2
     apply(cases "{a. (\<exists>y. A a = Some y) \<and> g a = x} = {}" ; simp?)
     apply(erule exE conjE)+
@@ -349,7 +359,7 @@ lemma bind1[simp] : "bindwset A (f \<circ> g) = bindwset (image_wset g A) f"
     apply(drule meta_mp)
     by auto
   subgoal for A f g y a t1 t2 x t1' t2'
-  *)  
+ 
 (*
 by (metis filtering.rep_eq filtering_true_equals_return not_Some_eq)
 *)
@@ -390,21 +400,20 @@ and dfswsetinf :: "('a, 's::ssr) GraphOfForest \<Rightarrow> ('a, 's) wsetinf \<
   dfswsetinf_code:"dfswsetinf g y = WSetInf (case outwsetinf y of
     Inl f \<Rightarrow> Inl (bindForest f (dfsForest g))
     | Inr a \<Rightarrow> (Inl (dfsForest g a)))" (*x is an either, need case*)
-(*(bindForest f (dfsForest g))*)
 
-(*primcorec dfsForest :: "('a, 's::ssr) GraphOfForest \<Rightarrow> 'a \<Rightarrow> ('a, 's) Forest" and dfswsetinf :: "('a, 's::ssr) GraphOfForest \<Rightarrow> 'a \<Rightarrow> ('a, 's) wsetinf" where
-  "dfsForest g x = Forest (wadd (un_Forest (returnForest x)) (un_Forest (bindForest (g x) (\<lambda>y. dfs g y))))" |
-  "dfswsetinf g x = undefined"*)
-
-lemma distributeImageWset[simp]:"image_wset f (wadd a b) = wadd (image_wset f a) (image_wset f b)"
-  unfolding wadd_def map_fun_def
+lemma implicReduce[simp]: "{a. x = a \<and> (x = a \<longrightarrow> f a = b)} = (if f x = b then {x} else {})"
   apply(auto)
-  sorry
+  done
 
 lemma image_wset_returnwset[simp]: "image_wset f (returnwset x) = returnwset (f x)"
-  sorry 
+  unfolding returnwset_def
+  apply(transfer)
+  apply(auto)
+  done
 
-lemma "dfsForest g x = Forest (wadd (un_Forest (returnForest x)) (un_Forest (bindForest (g x) (\<lambda>y. dfsForest g y))))" 
+lemma axiomizationEqvPaper:
+  "dfsForest g x 
+  = Forest (wadd (un_Forest (returnForest x)) (un_Forest (bindForest (g x) (\<lambda>y. dfsForest g y))))" 
 proof - 
   have h1: "(returnwset (returnwsetinf x)) = un_Forest (returnForest x)"
     unfolding returnwset_def returnwsetinf_def returnForest_def
@@ -419,25 +428,18 @@ proof -
     subgoal for ws
       apply(auto)
       unfolding dfswsetinf_code 
-      apply(auto intro!:wset.map_cong split:sum.split)
-      sorry
+      by (auto intro!:wset.map_cong split:sum.split simp add: bindwsetinf.code)
     done
-  (*proof (induction ws rule: WSet.wset_induct)
-    case (Abs_wset y)
-    then show ?case sorry
-  qed*)
-
   then have h2: "(image_wset (dfswsetinf g) (un_Forest (g x)) = un_Forest (bindForest (g x) (dfsForest g)))"
     apply (auto)
     done
   show ?thesis 
     unfolding h1[symmetric] h2[symmetric]
     apply (subst dfsForest_code)
-    apply (auto simp: wset.map_comp comp_def)
-    find_theorems wadd
-    done
+    apply (auto simp: wset.map_comp comp_def wadd_commute)
+    by (simp add: case_sum_o_inj(1) returnwset_def wimage_wadd_wsingle wset.map_comp)
+qed
     
-
 (*apply (auto intro!:wset.map_cong simp add:wset.map_comp bindwsetinf.code split:sum.split)
   done*)
 

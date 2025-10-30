@@ -1,10 +1,13 @@
-"Weighted" represents FINITE weighted sets and makes graphs of FINITE breadth
-If (1, a) is in Weighted, is (2, a) also, given the quotient?
-Predicates might be acceptable as they are used to define ordering by saying "there exists"
+If we define dfsForest as primitive, bindForest cannot be used.
+If we define dfsForest as non-primitive, I get an error around "|".
 
-Since sets do not support folding, it is hard to filter and do any kind of operation on them.
 
-In order to support connect, the set has to be mappable
-
-I cannot implement Monad or Semiring for a type synonym. So cannot implement Weight semimodule on Weighted
+Get Mathias' current version
+Get rid of "sorry"s
+Prove that wadd is commutative
+image_wset_returnwset
+Check git history for bind rules (definition of bind?)
+Exam is on the 6th of november, 13:00
+Next meeting at Thursday at 10:00, 30th oct
+e11 e12... lemma is the least important
 

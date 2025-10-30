@@ -1673,3 +1673,4 @@ unused_thms
 
 declare [[typedef_overloaded]]
 codatatype ('a, 'w) wsetinf = WSetInf "(('a, 'w) wsetinf + 'a, 'w :: ab_semigroup_add_test) wset"
+end
