@@ -87,9 +87,7 @@ definition returnGraph :: "('a, 's::ssr) GraphOfwset" where
 lift_definition bindwset :: "('a, 's::ssr) wset \<Rightarrow> ('a \<Rightarrow> ('b, 's) wset) \<Rightarrow> ('b, 's) wset" is
   "\<lambda>(w :: 'a \<Rightarrow> 's option) k (el :: 'b). (
   let (X :: 's set) = {s. \<exists>x t1 t2. w x = Some t1 \<and> k x el = Some t2 \<and> s = t1 \<otimes> t2} in
-  
-  Finite_Set.fold (\<lambda>x y. Option.bind y (\<lambda>y1. Some (y1 + x))) None X)"
-  (*Finite_Set.fold (\<lambda>x y. Some x + y) None X)"*)
+  Finite_Set.fold (\<lambda>x y. Some x + y) None X)"
   subgoal for w k
     apply (rule finite_subset[where B="\<Union>v \<in> dom w. dom (k v)"])
      apply (auto split: if_splits simp: dom_def)
@@ -99,13 +97,8 @@ lift_definition bindwset :: "('a, 's::ssr) wset \<Rightarrow> ('a \<Rightarrow> 
       done
     done
   done
-(*Finite_Set.fold (\<lambda>x y. Some x + y) None X)"*)
 
 (* Algorithms with edge semiring *)
-(* Naive-star is endlessly recursive, but maybe possibly corecursive
-fun naiveStar :: "('a, 's::ssr) GraphOfwset \<Rightarrow> ('a, 's) GraphOfwset" where
-  "naiveStar g = unionGraph returnGraph (connectGraph (naiveStar g) g)"*)
-
 fun exp :: "('a, 's::ssr) GraphOfwset \<Rightarrow> nat \<Rightarrow> ('a, 's) GraphOfwset" where
   "exp g 0 = returnGraph" |
   "exp g (Suc n) = connectGraph g (exp g n)"
@@ -171,7 +164,6 @@ lemma filtering_true_equals_return: "returnGraph = filtering (\<lambda>x. True)"
 
 
 type_synonym ('s, 'a) link = "('s \<times> 'a) option"
-(*codatatype ('s, 'a) chain = Chain 'a "('s \<times> ('s, 'a) chain) option"*)
 codatatype ('s, 'a) chain = Chain 'a "('s, ('s, 'a) chain) link"
 codatatype ('s, 'a) heap = Heap 'a "(('s \<times> ('s, 'a) heap) list)"
 
@@ -228,12 +220,13 @@ fun uniq :: "'a list_plus \<Rightarrow> bool" where
 type_synonym ('a, 's) LWeighted = "('a \<times> 's) list"
 
 declare [[typedef_overloaded]]
+
 codatatype ('a, 'w::ssr) wsetinf = WSetInf (outwsetinf: "('a, 'w) Forest + 'a")
 and ('a ,'w) Forest = Forest "(('a, 'w) wsetinf, 'w) wset"
+
 definition returnwsetinf :: "'a \<Rightarrow> ('a, 'w::ssr) wsetinf" where
 "returnwsetinf x = WSetInf (Inr x)"
 
-(*type_synonym ('a, 's) Forest = "(('a, 's) wsetinf, 's) wset"*)
 definition returnForest :: "'a \<Rightarrow> ('a, 'w::ssr) Forest" where
 "returnForest x = Forest (returnwset (returnwsetinf x))"
 
@@ -377,9 +370,6 @@ proof (induction A)
 next
   case (add x w A)
   then show ?case
-    find_theorems bindwset
-    find_theorems wupdate wadd
-    find_theorems wadd wupdate
     apply (auto simp add: bindwset_wupdate scalewset_returnwset_wsingle)
     by (simp add: wadd_wupdate_2)
 qed
@@ -398,13 +388,53 @@ proof -
   
 qed
 
-  
+
 
 lemma bind3[simp] : "bindwset (returnwset x) f = f x"
   by (simp add: returnwset_def)
-  
 
-lemma mutualDefIsEqvWithPaper : "bindForest xs k = (let binder = (
+lemma scalewset_wempty[simp]: "scalewset f wempty = wempty"
+  by (simp add: scalewset.rep_eq wempty.rep_eq wset_eq_iff)
+
+lemma wupdate_wempty[simp]: "wupdate wempty x (Some w) = wsingle x w"
+  by (metis wadd_commute wadd_wempty wadd_wupdate_2 wempty.rep_eq)
+
+lemma double_wupdate[simp]: "wupdate (wupdate A x w1) x w2 = wupdate A x w2"
+  by (simp add: wset_eq_iff wupdate.rep_eq)
+
+lemma scalewset_wupdate: 
+  "scalewset f (wupdate A x (Some w)) = wupdate (scalewset f A) x (Some (f w))"
+  proof (induction A)
+  case empty
+  then show ?case
+    apply auto
+    by (simp add: scalewset.rep_eq wset_eqI wsingle.rep_eq)
+next
+  case (add y v A)
+  then show ?case
+    apply (simp add: wadd_wupdate_2[symmetric])
+    by (simp add: scalewset.rep_eq wset_eqI wupdate.rep_eq)
+  qed
+
+lemma scalewset_does_not_change_containment:
+  "weight A x = None \<Longrightarrow> weight (scalewset f A) x = None"
+  by (simp add: scalewset.rep_eq)
+
+(*lemma bind4: "bindwset A (\<lambda>x. (bindwset (f x) g)) = bindwset (bindwset A f) g"
+proof (induction A)
+  case empty
+  then show ?case
+    by simp
+next
+  case (add x w A)
+  then show ?case
+    apply (auto simp add: bindwset_wupdate bindwset_wadd)
+    proof -
+      have "scalewset ((\<otimes>) w) (bindwset (f x) g) = bindwset (scalewset ((\<otimes>) w) (f x)) g"
+        sorry
+qed*)
+
+lemma mutualBindIsEqvWithPaper : "bindForest xs k = (let binder = (
     returnwset \<circ> WSetInf \<circ> Inl \<circ> ((case_sum (\<lambda>ys. bindForest ys k) k) \<circ> outwsetinf)
   ) in
   Forest (bindwset (un_Forest xs) binder))"
@@ -423,7 +453,7 @@ and dfswsetinf :: "('a, 's::ssr) GraphOfForest \<Rightarrow> ('a, 's) wsetinf \<
     (wadd (image_wset Inl (un_Forest (g x))) (returnwset (Inr (returnwsetinf x)))))" and
   dfswsetinf_code:"dfswsetinf g y = WSetInf (case outwsetinf y of
     Inl f \<Rightarrow> Inl (bindForest f (dfsForest g))
-    | Inr a \<Rightarrow> (Inl (dfsForest g a)))" (*x is an either, need case*)
+    | Inr a \<Rightarrow> (Inl (dfsForest g a)))"
 
 lemma implicReduce[simp]: "{a. x = a \<and> (x = a \<longrightarrow> f a = b)} = (if f x = b then {x} else {})"
   apply(auto)

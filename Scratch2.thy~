@@ -7,7 +7,7 @@ subsection \<open>The type of weighted sets\<close>
 
 (* Definition of weights, weighted sets and graphs*)
 class ssr = linorder + ab_semigroup_add_test +
-  fixes oplus :: "'a \<Rightarrow> 'a \<Rightarrow> 'a"  (infixl "\<oplus>" 65)
+  (*fixes oplus :: "'a \<Rightarrow> 'a \<Rightarrow> 'a"  (infixl "\<oplus>" 65)*)
   fixes otimes :: "'a \<Rightarrow> 'a \<Rightarrow> 'a" (infixl "\<otimes>" 70)
   fixes one :: "'a"
   fixes monus :: "'a \<Rightarrow> 'a \<Rightarrow> 'a"
@@ -61,7 +61,7 @@ lift_definition scalewset :: "('s::ssr \<Rightarrow> 's) \<Rightarrow> ('a, 's) 
 end
 
 (* EDGE SEMIRING *)
-(* Graph-union, \<oplus> *)
+(* Graph-union, + *)
 definition unionGraph :: "('a, 's::ssr) GraphOfwset \<Rightarrow> ('a, 's::ssr) GraphOfwset  \<Rightarrow> ('a, 's::ssr) GraphOfwset" where
   "unionGraph f g x = wadd (f x) (g x)"
 
@@ -72,7 +72,7 @@ definition emptyGraph :: "('a, 's::ssr) GraphOfwset" where
 (* Connect-operator, \<otimes> *)
 lift_definition connectGraph :: "('a, 's::ssr) GraphOfwset \<Rightarrow> ('a, 's::ssr) GraphOfwset  \<Rightarrow> ('a, 's::ssr) GraphOfwset" is
    "\<lambda>G1 G2 (u :: 'a) (v :: 'a). let X = {s. \<exists>(w :: 'a) s1 s2.
-      G1 u w = Some s1 \<and> G2 w v = Some s2 \<and> s = s1 + s2} in (if X = {} then None else Some (Min X))"
+      G1 u w = Some s1 \<and> G2 w v = Some s2 \<and> s = s1 \<otimes> s2} in (if X = {} then None else Some (Min X))"
   subgoal for G1 G2 u
     apply (rule finite_subset[where B="\<Union>v \<in> dom (G1 u). dom (G2 v)"])
      apply (auto split: if_splits simp: dom_def)
@@ -88,7 +88,6 @@ lift_definition bindwset :: "('a, 's::ssr) wset \<Rightarrow> ('a \<Rightarrow> 
   "\<lambda>(w :: 'a \<Rightarrow> 's option) k (el :: 'b). (
   let (X :: 's set) = {s. \<exists>x t1 t2. w x = Some t1 \<and> k x el = Some t2 \<and> s = t1 \<otimes> t2} in
   Finite_Set.fold (\<lambda>x y. Some x + y) None X)"
-  (*Finite_Set.fold (\<lambda>x y. Option.bind y (\<lambda>y1. Some (y1 \<oplus> x))) None X)"*)
   subgoal for w k
     apply (rule finite_subset[where B="\<Union>v \<in> dom w. dom (k v)"])
      apply (auto split: if_splits simp: dom_def)
@@ -98,13 +97,8 @@ lift_definition bindwset :: "('a, 's::ssr) wset \<Rightarrow> ('a \<Rightarrow> 
       done
     done
   done
-(*Finite_Set.fold (\<lambda>x y. Some x + y) None X)"*)
 
 (* Algorithms with edge semiring *)
-(* Naive-star is endlessly recursive, but maybe possibly corecursive
-fun naiveStar :: "('a, 's::ssr) GraphOfwset \<Rightarrow> ('a, 's) GraphOfwset" where
-  "naiveStar g = unionGraph returnGraph (connectGraph (naiveStar g) g)"*)
-
 fun exp :: "('a, 's::ssr) GraphOfwset \<Rightarrow> nat \<Rightarrow> ('a, 's) GraphOfwset" where
   "exp g 0 = returnGraph" |
   "exp g (Suc n) = connectGraph g (exp g n)"
@@ -170,7 +164,6 @@ lemma filtering_true_equals_return: "returnGraph = filtering (\<lambda>x. True)"
 
 
 type_synonym ('s, 'a) link = "('s \<times> 'a) option"
-(*codatatype ('s, 'a) chain = Chain 'a "('s \<times> ('s, 'a) chain) option"*)
 codatatype ('s, 'a) chain = Chain 'a "('s, ('s, 'a) chain) link"
 codatatype ('s, 'a) heap = Heap 'a "(('s \<times> ('s, 'a) heap) list)"
 
@@ -227,20 +220,15 @@ fun uniq :: "'a list_plus \<Rightarrow> bool" where
 type_synonym ('a, 's) LWeighted = "('a \<times> 's) list"
 
 declare [[typedef_overloaded]]
+
 codatatype ('a, 'w::ssr) wsetinf = WSetInf (outwsetinf: "('a, 'w) Forest + 'a")
 and ('a ,'w) Forest = Forest "(('a, 'w) wsetinf, 'w) wset"
+
 definition returnwsetinf :: "'a \<Rightarrow> ('a, 'w::ssr) wsetinf" where
 "returnwsetinf x = WSetInf (Inr x)"
 
-(*type_synonym ('a, 's) Forest = "(('a, 's) wsetinf, 's) wset"*)
 definition returnForest :: "'a \<Rightarrow> ('a, 'w::ssr) Forest" where
 "returnForest x = Forest (returnwset (returnwsetinf x))"
-
-(*fun bindForest :: "('a, 'w::ssr) Forest \<Rightarrow> ('a \<Rightarrow> ('b, 'w) Forest) \<Rightarrow> ('b, 'w) Forest" where
-"bindForest xs k = (let binder = (
-    returnwset \<circ> WSetInf \<circ> Inl \<circ> ((case_sum (\<lambda>ys. bindForest ys k) k) \<circ> outwsetinf)
-  ) in
-  Forest (bindwset (un_Forest xs) binder))"*)
 
 primcorec bindForest :: "('a, 'w::ssr) Forest \<Rightarrow> ('a \<Rightarrow> ('b, 'w) Forest) \<Rightarrow> ('b, 'w) Forest" 
   and bindwsetinf :: "('a \<Rightarrow> ('b, 'w) Forest) \<Rightarrow> ('a, 'w) wsetinf \<Rightarrow> ('b, 'w) wsetinf" where
@@ -248,11 +236,6 @@ primcorec bindForest :: "('a, 'w::ssr) Forest \<Rightarrow> ('a \<Rightarrow> ('
   "bindwsetinf k xs = WSetInf (case outwsetinf xs of 
     Inl ys \<Rightarrow> Inl (bindForest ys k) 
   | Inr xs \<Rightarrow> Inl (k xs))"
-
-(*lemma bind1[simp] : "bindwset A (f \<circ> g) = bindwset (image_wset g A) f"
-  apply(transfer)
-  apply(auto simp add: fun_eq_iff right_neutral)
-  apply (metis option.exhaust)*)
 
 lemma sumSome[simp]:"Some a + Some b = Some (a+b)"
   unfolding plus_option_def
@@ -288,18 +271,13 @@ proof (rule wset_induct[where P=P, OF _ add])
     using empty by simp
 qed
 
-(*
-lemma bindwset_wupdate_None:
-  "bindwset (wupdate M x None) k = wremove (k x) (bindwset M k)"
-  sorry
-*)
-lemma bindwset_wupdate:
-  "bindwset (wupdate M x (Some w)) k = wadd (scalewset ((\<otimes>) w) (k x)) (bindwset M k)"
-  apply transfer
-  unfolding bindwset_def
-  apply (auto intro!:fun_eq_iff)
+lemma wadd_wupdate_2: "weight A x = None \<Longrightarrow> wadd (wsingle x w) A = wupdate A x (Some w)"
+  by (simp add: wadd.rep_eq wset_eq_iff wsingle.rep_eq wupdate.rep_eq)
 
-  sorry
+lemma bindwset_wupdate:
+  "weight M x = None \<Longrightarrow> bindwset (wupdate M x (Some w)) k = wadd (scalewset ((\<otimes>) w) (k x)) (bindwset M k)"
+  by (smt (verit, best) Suc_eq_plus1 add.left_commute distribute n_not_Suc_n
+      otimes_nat_def)
 
 lemma wadd_wempty[simp]: "wadd wempty A = A"
   apply(transfer)
@@ -348,21 +326,26 @@ next
     apply (cases "weight A x"; cases "weight B x")
        apply (auto simp: bindwset_wupdate scalewset_distribute)
       apply (drule wupdate_same[of A])
-      apply (metis wadd_assoc wadd_commute)
+      apply (smt (verit, best) bindwset_wupdate wadd_assoc wadd_commute wupdate.rep_eq)
      apply (drule wupdate_same[of B])
-     apply (metis wadd_assoc)
-    apply (smt (verit, best) wadd_assoc wadd_commute)
-    done
+    apply (metis (no_types, lifting) bindwset_wupdate wadd_assoc wupdate.rep_eq)
+    by (smt (verit) bindwset_wupdate wadd_assoc wadd_commute wupdate.rep_eq)
+qed
+                                                                     
+lemma bindwset_wsingle[simp]: "bindwset (wsingle x w) f = scalewset ((\<otimes>) w) (f x)"
+proof -
+  have expand_single:"bindwset (wsingle x w) f = bindwset (wadd (wsingle x w) wempty) f"
+    by (simp add: wadd_commute)
+  have wadd_to_wupdate:"wadd (wsingle x w) wempty = wupdate wempty x (Some w)"
+    by (simp add: wadd_wupdate_2 wempty.rep_eq)
+    
+  have bindwset_to_scalewset:"bindwset (wupdate wempty x (Some w)) f = scalewset ((\<otimes>) w) (f x)"
+    by (simp add: bindwset_wupdate wadd_commute wempty.rep_eq)
+
+  show ?thesis
+    by (simp add: bindwset_to_scalewset expand_single wadd_to_wupdate)
 qed
 
-lemma bindwset_wsingle[simp]: "bindwset (wsingle x w) f = scalewset ((\<otimes>) w) (f x)"
-  apply(transfer)
-  apply(auto simp:fun_eq_iff)
-  subgoal for x w f y
-    apply(cases "f x y")
-    apply(auto)
-    done
-  done
 lemma bind1[simp] : "bindwset A (f \<circ> g) = bindwset (image_wset g A) f"
 proof (induction A)
   case empty
@@ -371,14 +354,13 @@ proof (induction A)
 next
   case (add x w A)
   then show ?case
-    by (auto simp add: bindwset_wupdate w_image_update bindwset_wadd)
+    apply (auto simp add: bindwset_wupdate)
+    apply (simp add: w_image_update bindwset_wadd)
+    done
 qed
 
-
-lemma wupdate_None_wadd: "weight A x = None \<Longrightarrow> wupdate A x (Some w) = wadd (wsingle x w) A"
-  unfolding wupdate_def
-  apply (auto split:if_splits)
-  by (metis add_Suc_right add_Suc_shift distribute n_not_Suc_n otimes_nat_def)
+lemma scalewset_returnwset_wsingle:"scalewset ((\<otimes>)w) (returnwset x) = wsingle x w"
+  by (simp add: returnwset_def right_neutral scalewset.rep_eq wset_eqI wsingle.rep_eq)
 
 lemma bind2[simp] : "bindwset A returnwset = A"
 proof (induction A)
@@ -388,24 +370,69 @@ proof (induction A)
 next
   case (add x w A)
   then show ?case
-    find_theorems wupdate bindwset
-    find_theorems wupdate wadd
-    find_theorems wadd wupdate
-    unfolding returnwset_def bindwset_def wupdate_def
-    apply auto
-    
-    by (metis (mono_tags, lifting) add_diff_cancel_right' distribute le_imp_less_Suc left_neutral
-        not_less_zero otimes_nat_def zero_le)
-    
-  (*by (metis option.exhaust)*)
+    apply (auto simp add: bindwset_wupdate scalewset_returnwset_wsingle)
+    by (simp add: wadd_wupdate_2)
+qed
+
+lemma scalewset_one_identity[simp]: "scalewset ((\<otimes>) one) A = A"
+proof -
+  have unfolding_scale:"scalewset ((\<otimes>) one) A = Abs_wset (\<lambda>el. Option.bind (weight A el) (\<lambda>x. Some (one \<otimes> x)))"
+    unfolding scalewset_def
+    by auto
+  have one_simp:"Abs_wset (\<lambda>el. Option.bind (weight A el) (\<lambda>x. Some (one \<otimes> x))) =
+    Abs_wset (\<lambda>el. Option.bind (weight A el) (\<lambda>x. Some x))"
+    by (simp add: left_neutral)
+
+  show ?thesis
+    by (simp add: one_simp unfolding_scale weight_inverse)
+  
+qed
+
+
 
 lemma bind3[simp] : "bindwset (returnwset x) f = f x"
-  unfolding returnwset_def
-  apply(transfer)
-  apply(auto simp add: fun_eq_iff right_neutral)
-  sorry
-  (*apply (metis option.exhaust)
-  using left_neutral by blast*)
+  by (simp add: returnwset_def)
+
+lemma scalewset_wempty[simp]: "scalewset f wempty = wempty"
+  by (simp add: scalewset.rep_eq wempty.rep_eq wset_eq_iff)
+
+lemma wupdate_wempty[simp]: "wupdate wempty x (Some w) = wsingle x w"
+  by (metis wadd_commute wadd_wempty wadd_wupdate_2 wempty.rep_eq)
+
+lemma double_wupdate[simp]: "wupdate (wupdate A x w1) x w2 = wupdate A x w2"
+  by (simp add: wset_eq_iff wupdate.rep_eq)
+
+lemma scalewset_wupdate: 
+  "scalewset f (wupdate A x (Some w)) = wupdate (scalewset f A) x (Some (f w))"
+  proof (induction A)
+  case empty
+  then show ?case
+    apply auto
+    by (simp add: scalewset.rep_eq wset_eqI wsingle.rep_eq)
+next
+  case (add y v A)
+  then show ?case
+    apply (simp add: wadd_wupdate_2[symmetric])
+    by (simp add: scalewset.rep_eq wset_eqI wupdate.rep_eq)
+  qed
+
+lemma scalewset_does_not_change_containment:
+  "weight A x = None \<Longrightarrow> weight (scalewset f A) x = None"
+  by (simp add: scalewset.rep_eq)
+
+lemma bind4: "bindwset A (\<lambda>x. (bindwset (f x) g)) = bindwset (bindwset A f) g"
+proof (induction A)
+  case empty
+  then show ?case
+    by simp
+next
+  case (add x w A)
+  then show ?case
+    apply (auto simp add: bindwset_wupdate bindwset_wadd)
+    proof -
+      have "scalewset ((\<otimes>) w) (bindwset (f x) g) = bindwset (scalewset ((\<otimes>) w) (f x)) g"
+        sorry
+qed
 
 lemma mutualDefIsEqvWithPaper : "bindForest xs k = (let binder = (
     returnwset \<circ> WSetInf \<circ> Inl \<circ> ((case_sum (\<lambda>ys. bindForest ys k) k) \<circ> outwsetinf)
@@ -467,9 +494,6 @@ proof -
     by (simp add: case_sum_o_inj(1) returnwset_def wimage_wadd_wsingle wset.map_comp)
 qed
     
-(*apply (auto intro!:wset.map_cong simp add:wset.map_comp bindwsetinf.code split:sum.split)
-  done*)
-
 (*fun dijkstra :: "'a \<Rightarrow> ('a, 's) GraphOfwset \<Rightarrow> ('a list_plus) Neighbours" where
   "dijkstra s g = connectwset (pathed g) (filtering uniq)"*)
 
